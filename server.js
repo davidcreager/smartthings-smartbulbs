@@ -15,13 +15,13 @@ console.log("Yeelight Bridge - Manage Yeelight devices")
 var http = require('http')
 var URL = require('url')
 var net = require('net')
-var yeeLight = require('./lib/yee.js');
+var yeeLight = require('./yee.js');
 var COLORS=require("color-convert")
 var SSDP = require('node-ssdp').Server
 var ip=require("ip")
 var uuid=require('uuid/v1')
 var ARP=require('node-arp')
-var XMLESCAPE = require('xml-escape');
+r XMLESCAPE = require('xml-escape');
 
 //var handleSSDPEvents = {smartSDDPs:[],smartLocations:[],smartIDs:[],smartMacs:[],macSmarts:[]}
 var handleSSDPEvents = {}
