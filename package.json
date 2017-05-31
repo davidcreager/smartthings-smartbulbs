@@ -1,0 +1,23 @@
+{
+  "name": "yeelight-smarthings",
+  "version": "1.0.0",
+  "description": "A server to act as intermediary between Smartthings and yeelights",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "keywords": [
+    "smartthings",
+    "yeelight"
+  ],
+  "author": "David Creager",
+  "license": "ISC",
+  "dependencies": {
+    "color-convert": "^1.9.0",
+    "ip": "^1.1.5",
+    "node-arp": "^1.0.5",
+    "node-ssdp": "^3.2.1",
+    "uuid": "^3.0.1"
+  }
+}
