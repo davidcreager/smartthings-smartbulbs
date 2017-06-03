@@ -10,7 +10,7 @@ History:
 05-May-2017 - Initial release
 */
 //-------------------------------------------------------------------------------
-
+"use strict";
 console.log("Yeelight Bridge - Manage Yeelight devices")
 var http = require('http')
 var URL = require('url')
@@ -39,8 +39,6 @@ var	yeeBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn:"YeeBridge
 	yeeBridgeSSDP.start()
 	
 var server = http.createServer(httpRequestHandler)
-var reqCnt=0
-var rspCnt=0
 
 server.listen(serverPort)
 var doneOnceFor16=false
@@ -84,14 +82,8 @@ function httpRequestHandler(req,resp) {
 	resp.on('error', function(err) {
 		console.error("httpRequestHandler: response onerror:"+err);
 	});
-	//console.log("DEBUG REQ Handler called "+req.url)
-		var devName,devMac,devIP
+		var devName,devMac,devIP,devID
 		var comm=""
-		//console.log("DEBUG Start Request (0) url="+req.url)
-		if (req.url!= "/light" && req.url!="/bridge"){
-			reqCnt++
-			//console.log("DEBUG Start Request #"+reqCnt+" uri="+req.url)
-		}
 		if (req.url.includes("HubAction") || req.url.includes("HubVerify")  ) {
 			var url=URL.parse(req.url, true)
 			var posAfterHubAction=req.url.indexOf("/HubAction/")+11
@@ -110,67 +102,78 @@ function httpRequestHandler(req,resp) {
 				yeeDevice = smartDevs[devID]
 				comm="deviceDescription"
 			}
-			//console.log("httpRequestHandler: devMac="+devMac+" devName="+devName+" url="+req.url+" comm="+comm)
 			this.respDone=function(){
 				//console.log("response sent! ")
 			}
-			//console.log("httpRequestHandler: method=" + req.method + " devMac=" + devMac + " devName=" + devName + " command=" + comm + " url=" +req.url+ " query=" + retProps(url.query)+" header="+retProps(req.headers))
+			function doCommand(resp,devMac,method,params,id,devName){
+				if (params) {
+					resp.writeHead(200, {"Content-Type": "application/json"}); //application/json
+					resp.write(JSON.stringify({"deviceID":devMac,"method":method,"params":params}))
+				}
+				messageStack[id]=resp
+				deviceNameForResponse[id]=devName
+				console.log("httpRequestHandler: doCommand: devMac=" + devMac +
+							" method=" + method + " params="+retProps(params) +
+							" id=" + id + " devName=" + devName)
+			}
 			console.log("httpRequestHandler: method=" + req.method + " devMac=" + devMac + " devName=" + devName + 
 							" command=" + comm + " url=" +req.url+ " query=" + retProps(url.query))
 			if (smartDevs[devName]) {
 				devIP=smartDevs[devName].host
-				//console.log("devIP="+devIP)
-				var svdCB=smartDevs[devName].propChangeCb
 				var id = 1 + (Math.random() * 1e3) & 0xff;		
 				switch (comm) {
-					case "on":				
-						smartDevs[devName].setPower(1,id)
-						writeCommandResponse(resp,JSON.stringify({"deviceID":devMac,"method":"set_power","params":{"value":["on","smooth",500]}}),200);		
-						messageStack[id]=resp
-						deviceNameForResponse[id]=devName
-						console.log("httpRequestHandler: setPower On called with id="+id)
-					break
+					case "on":			
 					case "off":
-						smartDevs[devName].setPower(0,id)
-						writeCommandResponse(resp,JSON.stringify({"deviceID":devMac,"method":"set_power","params":{"value":["off","smooth",500]}}),200)
-						messageStack[id]=resp
-						deviceNameForResponse[id]=devName
-						console.log("httpRequestHandler: setPower Off called with id="+id)
+						smartDevs[devName].setPower((comm=="on")?1:0,id)
+						doCommand(resp,devMac,"set_power",{"value":[comm,"smooth",500]},id,devName)
 					break
-	//				case "status":
-	//				break
 					case "set_bright":
 						smartDevs[devName].set_bright(url.query.value,id)
-						writeCommandResponse(resp,JSON.stringify({"deviceID":devMac,"method":"set_bright","params":{"value":[url.query.value,"smooth",500]}}),200)
-						messageStack[id]=resp
-						deviceNameForResponse[id]=devName
-						console.log("httpRequestHandler: set_bright called with id="+id)
+						doCommand(resp,devMac,"set_bright",{"value":[url.query.value,"smooth",500]},id,devName)
 					break
 					case "ctx":
 						smartDevs[devName].set_ctx(url.query.value,id)
-						writeCommandResponse(resp,JSON.stringify({"deviceID":devMac,"method":"set_ctx","params":{"value":[url.query.value,"smooth",500]}}),200)
-						messageStack[id]=resp
-						deviceNameForResponse[id]=devName
-						console.log("httpRequestHandler: set_bright called with id="+id)
+						doCommand(resp,devMac,"set_ctx",{"value":[url.query.value,"smooth",500]},id,devName)
 					break
 					case "rgb":
-						var rgb=DecToRGB(url.query.value)
-						//[red:241, hex:#F1E3FF, saturation:10.980392, blue:255, green:227, hue:75.0]
-						var stColorValue={red:rgb.r,green:rgb.g,blue:rgb.b,saturation:COLORS.rgb.hsv.raw(rgb.r,rgb.g,rgb.b)[1],hue:COLORS.rgb.hsv.raw(rgb.r,rgb.g,rgb.b)[0],hex:COLORS.rgb.hex(rgb.r,rgb.g,rgb.b)}
-						smartDevs[devName].setRGB(rgb.r,rgb.g,rgb.b,id)
-						writeCommandResponse(resp,JSON.stringify({"stColor":stColorValue,"deviceID":devMac,"method":"set_rgb","params":{"value":[rgb,"smooth",500]}}),200)
-						messageStack[id]=resp
-						deviceNameForResponse[id]=devName
-						console.log("httpRequestHandler: setRGB called with id=" + id + " red=" + rgb.r + " green=" + rgb.g + " blue=" + rgb.b)
+						var stColorValue, rgb, hex, hsl
+						var qQuery=url.query
+						if (qQuery.mode=="hex") {
+							rgb = COLORS.hex.rgb(qQuery.value)
+							hsl = COLORS.hex.hsl.raw(qQuery.value)
+							hex = qQuery.value
+						} else if (url.query.mode=="hsl") {
+							rgb = COLORS.hsl.rgb([qQuery.hue,qQuery.saturation,100])
+							hex = COLORS.hsl.hex([qQuery.hue,qQuery.saturation,100])
+							hsl = [qQuery.hue,qQuery.saturation,100]
+							
+						} else if (url.query.mode=="decimal") {
+							rgb = DecToRGB(url.query.value)
+							hsl = COLORS.rgb.hsl.raw(rgb)
+							hex = COLORS.rgb.hex(rgb)
+							
+						} else {
+							//FFFAF0
+							rgb = COLORS.hex.rgb("FFFAF0")
+							hsl = COLORS.hex.hsl.raw("FFFAF0")
+							hex = "FFFAF0"
+						}
+						console.log("DEBUG HUE="+hsl[0])
+						/*stColorValue = {	red:rgb[0], green:rgb[1], blue:rgb[2],
+											hue:((hsl[0]/360)*100),saturation:hsl[1],
+											hex:hex }*/
+						stColorValue = {	red:rgb[0], green:rgb[1], blue:rgb[2],
+											hue:qQuery.hue,saturation:qQuery.saturation,
+											hex:hex }
+						
+						//console.log("httpRequestHandler rgb="+retProps(rgb) + " hsl=" + retProps(hsl) + " hex=" + hex + " stColorValue=" + retProps(stColorValue))
+						smartDevs[devName].setRGB(stColorValue.red,stColorValue.green,stColorValue.blue,id)
+						doCommand(resp,devMac,"setRGB",{"value":[rgb,"smooth",500]},id,devName)
 					break
 					case "refresh":
 						smartDevs[devName].get_props(id)
-						//params:[["power","name","bright","ct","rgb","hue","sat","color_mode","delayoff","flowing","flow_params","music_on"]]}
-//						writeCommandResponse(resp,JSON.stringify({"deviceID":devMac,"method":"get_props",
-//							"params":properties}),200)
-						messageStack[id]=resp
-						deviceNameForResponse[id]=devName
-						console.log("httpRequestHandler: get_props called with id="+id)					
+						doCommand(resp,devMac,"get_props",null,id,devName)
+						deviceNameForResponse[id]=devName		
 					break
 					case "deviceDescription":
 						resp.writeHead(200, {"Content-Type": "text/xml"});
@@ -182,16 +185,18 @@ function httpRequestHandler(req,resp) {
 						resp.write("</device>");
 						resp.write("</root>");					
 						resp.end(this.respDone);					
-						console.log("httpRequestHandler: Response sent for url"+req.url)
+						console.log("httpRequestHandler: Response sent for deviceDescription - url"+req.url)
 					break
 					default:
 						console.log("httpRequestHandler: Unknown Command comm="+comm)
-						writeCommandResponse(resp,"Unknown Command -"+comm,400)
+						resp.writeHead(400, {"Content-Type": "application/json"}); //application/json
+						resp.write("Unknown Command -"+comm)
 						resp.end(this.respDone);
 				}
 			} else {
 				console.log("httpRequestHandler: Can't find device "+devName+" devMac="+devMac+" req.url="+req.url)
-				writeCommandResponse(resp,"Can't find device "+devName,400)
+				resp.writeHead(400, {"Content-Type": "application/json"}); //application/json
+				resp.write("Can't find device "+devName)
 				resp.end(this.respDone);
 			}
 		} else {
@@ -202,34 +207,17 @@ function httpRequestHandler(req,resp) {
 			if (req.url!= "/light" && req.url!="/bridge") {
 				console.log("httpRequestHandler: Weird - device description responded url="+req.url)
 			}
-			//console.log("About to end response 1 ="+retPropNames(resp))
 			resp.end(this.respDone);
 		}
 		if (req.url!= "/light" && req.url!="/bridge"){
-			//console.log("DEBUG Finished handling request #"+reqCnt+" uri="+req.url)
+			//console.log("DEBUG Finished handling request uri="+req.url)
 		}
-
-
-
-		if ( ( !doneOnceFor16 && req.connection.remoteAddress.includes("192.168.1.16") ) || ( !doneOnceFor62 && req.connection.remoteAddress.includes("192.168.1.62") ) ) {
-			req.connection.remoteAddress.includes("192.168.1.16")
-			if (req.connection.remoteAddress.includes("192.168.1.16")) doneOnceFor16=true
-			if (req.connection.remoteAddress.includes("192.168.1.62")) doneOnceFor62=true
-				//console.log("httpRequestHandler: url=" + req.url + "headers=" + retProps(req.headers) + " req remoteAddress="+req.connection.remoteAddress)
-		} else {
-			if ( !(req.connection.remoteAddress.includes("192.168.1.16")) && !(req.connection.remoteAddress.includes("192.168.1.62")) ) {
-				//console.log("httpRequestHandler: url=" + req.url + "headers=" + retProps(req.headers) + " req remoteAddress="+req.connection.remoteAddress)
-			}
-		}
-
 }
 handleSSDPEvents.onDevFound = function(dev) {
-		//console.log("onDevFound: " + dev.did + " " + dev.name + " dev power: " + dev.power);
-		//console.log("onDevFound: host:port=" + dev.host + ":" + dev.port + " model=" + dev.model + " bright:hue:sat=" + dev.bright + ":" + dev.hue + ":" + dev.sat)
 		if (dev.did in smartIDs) {
-			//console.log("onDevFound: Already found " + dev.did + " " + dev.name)
+			console.log("onDevFound: Already found " + dev.did + " " + dev.name)
 		} else {
-			//console.log("onDevFound: Adding device " + dev.did + " " + dev.name + " host=" + dev.host+":"+dev.port )
+			console.log("onDevFound: Adding device " + dev.did + " " + dev.name + " host=" + dev.host+":"+dev.port )
 			smartSDDPs[did]=null
 			smartIDs[did]=dev.name
 			smartLocations[did]=dev.host+":"+dev.port
@@ -238,9 +226,8 @@ handleSSDPEvents.onDevFound = function(dev) {
 	}
 handleSSDPEvents.onDevConnected = function(dev) {
 		//console.log("onDevConnected: host:port=" + dev.host + ":" + dev.port + " " + dev.did + " model=" + dev.model + " bright:hue:sat=" + dev.bright + ":" + dev.hue + ":" + dev.sat)
-		startSDDP = true
+		var startSDDP = true
 		if (dev.did in smartIDs) {
-			//console.log("onDevConnected: Already found " + dev.did + " " + dev.name)
 			if (dev.name == smartIDs[dev.did] && dev.host+":"+dev.port == smartLocations[dev.did] && smartSDDPs[dev.did] != null) {
 				startSDDP = false
 				//console.log("onDevConnected: Device already advertised with correct details" + dev.did + " " + dev.name)
@@ -252,7 +239,7 @@ handleSSDPEvents.onDevConnected = function(dev) {
 		if (startSDDP){
 			ARP.getMAC(dev.host,function(notFound,result){
 				if (notFound) {
-					console.log("onDevConnected:getMAC dev.did=" + dev.did + " dev.host=" + dev.host +  result)
+					console.log("onDevConnected:getMAC MAC notFound dev.did=" + dev.did + " dev.host=" + dev.host +  result)
 				} else {
 					var mac=result.replace(/:/g,"").toUpperCase()
 					console.log("onDevConnected: Creating SSDP Server for did=" + dev.did + " name=" + dev.name + " MAC=" + mac + 
@@ -281,8 +268,7 @@ handleSSDPEvents.onDevDisconnected = function(dev) {
 		}
 	}
 handleSSDPEvents.onDevPropChange = function(dev, prop, val,ind) {
-		rspCnt++
-		console.log("onDevPropChange:(1)  #" + rspCnt+" "+ dev.did + " prop: " + prop+ " ind=" + ind + " val: " + val)
+		console.log("onDevPropChange:(1)  " + dev.did + " prop: " + prop+ " ind=" + ind + " val: " + val)
 		if (prop=="all") {
 			if (ind in messageStack) {
 				var result, stuff
@@ -307,11 +293,10 @@ handleSSDPEvents.onDevPropChange = function(dev, prop, val,ind) {
 						}
 					}
 					var devMac=macSmarts[deviceNameForResponse[ind]]
-					writeCommandResponse(messageStack[ind],JSON.stringify({"deviceID":devMac,"method":"get_props",
-							"params":res}),200)					
-					//messageStack[ind].write(JSON.stringify({"props":res}))
+					messageStack[ind].writeHead(200, {"Content-Type": "application/json"}); //application/json
+					messageStack[ind].write(JSON.stringify({"deviceID":devMac,"method":"get_props",
+															"params":res}))							
 					messageStack[ind].end();
-					console.log("Received object as result ="+ retProps(res))
 					console.log("Received object as result ="+JSON.stringify({"props":res}))
  				} else {
 					messageStack[ind].end();
@@ -328,24 +313,6 @@ handleSSDPEvents.onDevPropChange = function(dev, prop, val,ind) {
 		}
 		console.log("onDevPropChange: host:port=" + dev.host + ":" + dev.port + " model=" + dev.model + " bright:hue:sat=" + dev.bright + ":" + dev.hue + ":" + dev.sat)
 	}
-function writeCommandResponse(resp,comm,htpStatus) {
-	//var cmm=XMLESCAPE(comm.replace(/{/g,"").replace(/}/g,""))
-	var cmm=encodeXml(comm)
-	console.log("writing response comm="+comm)
-	//resp.writeHead(htpStatus, {"Content-Type": "text/xml"}); //application/json
-	resp.writeHead(htpStatus, {"Content-Type": "application/json"}); //application/json
-	resp.write(comm)
-
-	/*
-	resp.write("<?xml version=\"1.0\"?> ");
-	resp.write("<root>");
-	resp.write("<body>");
-	resp.write("<command>"+cmm+"</command>")
-	//resp.write("<command>Done</command>")
-	resp.write("</body>");
-	resp.write("</root>");
-	*/
-}
 function writeDeviceDescriptionResponse(resp,bridgeMac,devMac,devName,devIP) {
 	resp.write("<?xml version=\"1.0\"?> ");
 	resp.write("<root xmlns=\"urn:schemas-upnp-org:device:YeeLight:1\">");
