@@ -175,6 +175,12 @@ function httpRequestHandler(req,resp) {
 						doCommand(resp,devMac,"get_props",null,id,devName,null)
 						deviceNameForResponse[id]=devName		
 					break
+					case "configGet":
+						console.log("httpRequestHandler: Config call received params=" + retProps(url.query))
+						resp.writeHead(200, {"Content-Type": "text/xml"});
+						resp.write(JSON.stringify({"deviceID":devMac,"stColor":null,"method":"configGet","params":url.query}))
+						resp.end(this.respDone);
+					break
 					case "deviceDescription":
 						resp.writeHead(200, {"Content-Type": "text/xml"});
 						writeDeviceDescriptionResponse(resp,bridgeMac,devMac,devName,devIP)
@@ -184,7 +190,7 @@ function httpRequestHandler(req,resp) {
 						resp.write("<support>"+yeeDevice.support+"</support>");
 						resp.write("</device>");
 						resp.write("</root>");					
-						resp.end(this.respDone);					
+						resp.end(this.respDone);
 						console.log("httpRequestHandler: Response sent for deviceDescription - url"+req.url)
 					break
 					default:
