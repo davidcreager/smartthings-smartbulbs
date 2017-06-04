@@ -105,10 +105,10 @@ function httpRequestHandler(req,resp) {
 			this.respDone=function(){
 				//console.log("response sent! ")
 			}
-			function doCommand(resp,devMac,method,params,id,devName){
+			function doCommand(resp,devMac,method,params,id,devName,stColor){
 				if (params) {
 					resp.writeHead(200, {"Content-Type": "application/json"}); //application/json
-					resp.write(JSON.stringify({"deviceID":devMac,"method":method,"params":params}))
+					resp.write(JSON.stringify({"deviceID":devMac,"stColor":stColor,"method":method,"params":params}))
 				}
 				messageStack[id]=resp
 				deviceNameForResponse[id]=devName
@@ -125,15 +125,15 @@ function httpRequestHandler(req,resp) {
 					case "on":			
 					case "off":
 						smartDevs[devName].setPower((comm=="on")?1:0,id)
-						doCommand(resp,devMac,"set_power",{"value":[comm,"smooth",500]},id,devName)
+						doCommand(resp,devMac,"set_power",{"value":[comm,"smooth",500]},id,devName,null)
 					break
 					case "set_bright":
 						smartDevs[devName].set_bright(url.query.value,id)
-						doCommand(resp,devMac,"set_bright",{"value":[url.query.value,"smooth",500]},id,devName)
+						doCommand(resp,devMac,"set_bright",{"value":[url.query.value,"smooth",500]},id,devName,null)
 					break
 					case "ctx":
 						smartDevs[devName].set_ctx(url.query.value,id)
-						doCommand(resp,devMac,"set_ctx",{"value":[url.query.value,"smooth",500]},id,devName)
+						doCommand(resp,devMac,"set_ctx",{"value":[url.query.value,"smooth",500]},id,devName,null)
 					break
 					case "rgb":
 						var stColorValue, rgb, hex, hsl
@@ -168,11 +168,11 @@ function httpRequestHandler(req,resp) {
 						
 						//console.log("httpRequestHandler rgb="+retProps(rgb) + " hsl=" + retProps(hsl) + " hex=" + hex + " stColorValue=" + retProps(stColorValue))
 						smartDevs[devName].setRGB(stColorValue.red,stColorValue.green,stColorValue.blue,id)
-						doCommand(resp,devMac,"setRGB",{"value":[rgb,"smooth",500]},id,devName)
+						doCommand(resp,devMac,"set_rgb",{"value":[rgb,"smooth",500]},id,devName,stColorValue)
 					break
 					case "refresh":
 						smartDevs[devName].get_props(id)
-						doCommand(resp,devMac,"get_props",null,id,devName)
+						doCommand(resp,devMac,"get_props",null,id,devName,null)
 						deviceNameForResponse[id]=devName		
 					break
 					case "deviceDescription":
@@ -200,6 +200,7 @@ function httpRequestHandler(req,resp) {
 				resp.end(this.respDone);
 			}
 		} else {
+			//console.log("httpRequestHandler: DEBUG - device description responded url="+req.url)
 			resp.writeHead(200, {"Content-Type": "text/xml"});
 			writeDeviceDescriptionResponse(resp,bridgeMac,devMac,devName,devIP)
 			resp.write("</device>");
@@ -208,7 +209,7 @@ function httpRequestHandler(req,resp) {
 				console.log("httpRequestHandler: Weird - device description responded url="+req.url)
 			}
 			resp.end(this.respDone);
-		}
+		} 
 		if (req.url!= "/light" && req.url!="/bridge"){
 			//console.log("DEBUG Finished handling request uri="+req.url)
 		}
