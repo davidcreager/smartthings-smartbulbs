@@ -21,20 +21,23 @@ var SSDP = require('node-ssdp').Server
 var ip=require("ip")
 var uuid=require('uuid/v1')
 var ARP=require('node-arp')
-
-//var handleSSDPEvents = {smartSDDPs:[],smartLocations:[],smartIDs:[],smartMacs:[],macSmarts:[]}
+var NCONF=require('nconf')
+NCONF.argv()
+	.env()
+	.file({ file: './config.json' });
+const serverPort=NCONF.get("bridge").port
+const bridgeMac=require('node-getmac').replace(/:/g,"").toUpperCase()
+const yeelightTransition=NCONF.get("yeelight").transition
 var handleSSDPEvents = {}
 var smartSDDPs=[],smartLocations=[],smartIDs=[],smartMacs=[],macSmarts=[],smartDevs=[]
 var messageStack=[],deviceNameForResponse=[]
 var properties=["power","name","bright","ct","rgb","hue","sat","color_mode","delayoff","flowing","flow_params","music_on"]
 var yeeSSDPHandler  = new yeeLight.YeeAgent("0.0.0.0",handleSSDPEvents)
 yeeSSDPHandler.startDisc()
-//00155D012D00
-var bridgeMac=require('node-getmac').replace(/:/g,"").toUpperCase()
+//var bridgeMac=require('node-getmac').replace(/:/g,"").toUpperCase()
 
-var serverPort = '8082'  // Same is in various groovy files.
-console.log("Yeelight Bridge - Starting SSDP Annoucements for Bridge Device (YeeBridge) IP:PORT=" + ip.address() + ':8082' + " mac=" + bridgeMac)
-var	yeeBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn:"YeeBridge "+uuid(),location:"http://"+ ip.address() + ':8082/bridge'})
+console.log("Yeelight Bridge - Starting SSDP Annoucements for Bridge Device (YeeBridge) IP:PORT=" + ip.address() + ":" + serverPort + " mac=" + bridgeMac)
+var	yeeBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn:"YeeBridge "+uuid(),location:"http://"+ ip.address() + ":" + serverPort + '/bridge'})
 	yeeBridgeSSDP.addUSN('urn:schemas-upnp-org:device:YeeBridge:1')
 	yeeBridgeSSDP.start()
 	
@@ -43,7 +46,6 @@ var server = http.createServer(httpRequestHandler)
 server.listen(serverPort)
 var doneOnceFor16=false
 var doneOnceFor62=false
-//var server = http.createServer(httpRequestHandler)
 function retProps(obj){
 	var props=""
 	for (var property in obj) {
@@ -250,8 +252,8 @@ handleSSDPEvents.onDevConnected = function(dev) {
 				} else {
 					var mac=result.replace(/:/g,"").toUpperCase()
 					console.log("onDevConnected: Creating SSDP Server for did=" + dev.did + " name=" + dev.name + " MAC=" + mac + 
-							" location=" + "http://"+ ip.address() + ':8082/light' + " dev location=" + dev.host + ":" + dev.port)
-					smartSDDPs[dev.did] = new SSDP({allowWildcards:true,sourcePort:1900,udn:dev.did,location:"http://"+ ip.address() + ':8082/light'})
+							" location=" + "http://"+ ip.address() + ":" + serverPort + '/light' + " dev location=" + dev.host + ":" + dev.port)
+					smartSDDPs[dev.did] = new SSDP({allowWildcards:true,sourcePort:1900,udn:dev.did,location:"http://"+ ip.address() + ":" + serverPort + '/light'})
 					smartSDDPs[dev.did].addUSN('urn:schemas-upnp-org:device:YeeLight:1')
 					smartIDs[dev.did]=dev.name
 					smartLocations[dev.host+":"+dev.port]=dev.did
