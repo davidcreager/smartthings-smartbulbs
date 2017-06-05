@@ -4,35 +4,32 @@ Provides a smartapp, device handler and node.js server to manage yeelight bulbs
 
 Installation
 create directory /var/opt/node/yeelight-smartthings  (You may need to create /var/opt/node)
+
+sudo addgroup --system yeelights
+sudo adduser --system yeelights --ingroup yeelights
+getent group yeelights
+id yeelights
+
+
+
 sudo mkdir /var/opt/node/yeelight-smartthings
 cd /var/opt/node/yeelight-smartthings
+
 sudo git clone https://github.com/davidcreager/yeelight-smartthings.git
+
 sudo cp /var/opt/node/yeelight-smartthings/yeelight-smartthings.service /etc/systemd/system/
+sudo cp /var/opt/node/yeelight-smartthings/config.json /home/yeelights/
+sudo chown yeelights:yeelights /home/yeelights/config.json
+
 sudo systemctl daemon-reload
 sudo systemctl enable yeelight-smartthings
-copy the files into /var/opt/node/yeelight-smartthings (server.js,yee.js,config.json)
-copy yeelight-smartthings.service into /etc/systemd/systemd/system
-
-sudo systemctl daemon-reload
-sudo systemctl --user enable yeelights
 sudo systemctl start yeelight-smartthings
-sudo systemctl enable yeelight-smartthings (this makes server run on startup)
-journalctl -u yeelight-smartthings
-Main process exited, code=exited, status=216/GROUP
-Main process exited, code=exited, status=203/EXEC
-Exec format error
-Main process exited, code=exited, status=127/n/a
-
-vim :se ff=unix
+sudo systemctl status yeelight-smartthings
 
 
+sudo chown yeelights:yeelights /home/yeelights/
 
-
-sudo adduser --system yeelights
-sudo addgroup yeelightsmartthingserver
-getent group yeelightsmartthingserver
-sudo usermod -G yeelightsmartthingserver yeelights
-
+sudo chmod a+x server.js
 
 
 Todo
