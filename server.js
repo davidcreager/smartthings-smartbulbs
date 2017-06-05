@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /*
 Yeelight node.js bridge
 This is a node.js server supporting Yeelight Devices.  This node server will:
@@ -234,7 +235,7 @@ handleSSDPEvents.onDevFound = function(dev) {
 		
 	}
 handleSSDPEvents.onDevConnected = function(dev) {
-		//console.log("onDevConnected: host:port=" + dev.host + ":" + dev.port + " " + dev.did + " model=" + dev.model + " bright:hue:sat=" + dev.bright + ":" + dev.hue + ":" + dev.sat)
+		console.log("onDevConnected: host:port=" + dev.host + ":" + dev.port + " " + dev.did + " model=" + dev.model + " bright:hue:sat=" + dev.bright + ":" + dev.hue + ":" + dev.sat)
 		var startSDDP = true
 		if (dev.did in smartIDs) {
 			if (dev.name == smartIDs[dev.did] && dev.host+":"+dev.port == smartLocations[dev.did] && smartSDDPs[dev.did] != null) {
@@ -246,6 +247,7 @@ handleSSDPEvents.onDevConnected = function(dev) {
 			}
 		}
 		if (startSDDP){
+			console.log("DEBUG about to call ARP getmac")
 			ARP.getMAC(dev.host,function(notFound,result){
 				if (notFound) {
 					console.log("onDevConnected:getMAC MAC notFound dev.did=" + dev.did + " dev.host=" + dev.host +  result)
@@ -262,7 +264,8 @@ handleSSDPEvents.onDevConnected = function(dev) {
 					smartSDDPs[dev.did].start()
 					smartDevs[dev.did]=dev
 				}
-			})			
+			})
+			console.log("DEBUG called ARP getmac")
 		}
 		
 	}
