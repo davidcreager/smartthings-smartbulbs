@@ -161,7 +161,7 @@ function httpRequestHandler(req,resp) {
 							hsl = COLORS.hex.hsl.raw("FFFAF0")
 							hex = "FFFAF0"
 						}
-						console.log("DEBUG HUE="+hsl[0])
+						//console.log("DEBUG HUE="+hsl[0])
 						/*stColorValue = {	red:rgb[0], green:rgb[1], blue:rgb[2],
 											hue:((hsl[0]/360)*100),saturation:hsl[1],
 											hex:hex }*/
@@ -235,7 +235,7 @@ handleSSDPEvents.onDevFound = function(dev) {
 		
 	}
 handleSSDPEvents.onDevConnected = function(dev) {
-		console.log("onDevConnected: host:port=" + dev.host + ":" + dev.port + " " + dev.did + " model=" + dev.model + " bright:hue:sat=" + dev.bright + ":" + dev.hue + ":" + dev.sat)
+		//console.log("onDevConnected: host:port=" + dev.host + ":" + dev.port + " " + dev.did + " model=" + dev.model + " bright:hue:sat=" + dev.bright + ":" + dev.hue + ":" + dev.sat)
 		var startSDDP = true
 		if (dev.did in smartIDs) {
 			if (dev.name == smartIDs[dev.did] && dev.host+":"+dev.port == smartLocations[dev.did] && smartSDDPs[dev.did] != null) {
@@ -247,7 +247,6 @@ handleSSDPEvents.onDevConnected = function(dev) {
 			}
 		}
 		if (startSDDP){
-			console.log("DEBUG about to call ARP getmac")
 			ARP.getMAC(dev.host,function(notFound,result){
 				if (notFound) {
 					console.log("onDevConnected:getMAC MAC notFound dev.did=" + dev.did + " dev.host=" + dev.host +  result)
@@ -265,7 +264,6 @@ handleSSDPEvents.onDevConnected = function(dev) {
 					smartDevs[dev.did]=dev
 				}
 			})
-			console.log("DEBUG called ARP getmac")
 		}
 		
 	}

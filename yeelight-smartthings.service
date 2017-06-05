@@ -2,13 +2,13 @@
 Description=node.js server to manage yeelight bulbs
 
 [Service]
-ExecStart=node /var/opt/node/yeelight-smartthings/server.js
+ExecStart=/var/opt/node/yeelight-smartthings/server.js
 Restart=always
-User=nobody
-Group=nobody
+User=yeelights
+Group=yeelights
 Environment=PATH=/usr/bin:/usr/local/bin:/usr/sbin
 Environment=NODE_ENV=production
-WorkingDirectory=/var/opt/node/yeelight-smartthings/
+WorkingDirectory=/home/yeelights/
 
 [Install]
 WantedBy=multi-user.target
