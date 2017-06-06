@@ -45,8 +45,6 @@ var	yeeBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn:"YeeBridge
 var server = http.createServer(httpRequestHandler)
 
 server.listen(serverPort)
-var doneOnceFor16=false
-var doneOnceFor62=false
 function retProps(obj){
 	var props=""
 	for (var property in obj) {
@@ -115,12 +113,12 @@ function httpRequestHandler(req,resp) {
 				}
 				messageStack[id]=resp
 				deviceNameForResponse[id]=devName
-				console.log("httpRequestHandler: doCommand: devMac=" + devMac +
-							" method=" + method + " params="+retProps(params) +
-							" id=" + id + " devName=" + devName)
+				//console.log("httpRequestHandler: doCommand: devMac=" + devMac +
+				//			" method=" + method + " params="+retProps(params) +
+				//			" id=" + id + " devName=" + devName)
 			}
-			console.log("httpRequestHandler: method=" + req.method + " devMac=" + devMac + " devName=" + devName + 
-							" command=" + comm + " url=" +req.url+ " query=" + retProps(url.query))
+			//console.log("httpRequestHandler: method=" + req.method + " devMac=" + devMac + " devName=" + devName + 
+			//				" command=" + comm + " url=" +req.url+ " query=" + retProps(url.query))
 			if (smartDevs[devName]) {
 				devIP=smartDevs[devName].host
 				var id = 1 + (Math.random() * 1e3) & 0xff;		
@@ -194,7 +192,7 @@ function httpRequestHandler(req,resp) {
 						resp.write("</device>");
 						resp.write("</root>");					
 						resp.end(this.respDone);
-						console.log("httpRequestHandler: Response sent for deviceDescription - url"+req.url)
+						//console.log("httpRequestHandler: Response sent for deviceDescription - url"+req.url)
 					break
 					default:
 						console.log("httpRequestHandler: Unknown Command comm="+comm)
@@ -278,7 +276,7 @@ handleSSDPEvents.onDevDisconnected = function(dev) {
 		}
 	}
 handleSSDPEvents.onDevPropChange = function(dev, prop, val,ind) {
-		console.log("onDevPropChange:(1)  " + dev.did + " prop: " + prop+ " ind=" + ind + " val: " + val)
+		//console.log("onDevPropChange:(1)  " + dev.did + " prop: " + prop+ " ind=" + ind + " val: " + val)
 		if (prop=="all") {
 			if (ind in messageStack) {
 				var result, stuff
@@ -307,7 +305,7 @@ handleSSDPEvents.onDevPropChange = function(dev, prop, val,ind) {
 					messageStack[ind].write(JSON.stringify({"deviceID":devMac,"method":"get_props",
 															"params":res}))							
 					messageStack[ind].end();
-					console.log("Received object as result ="+JSON.stringify({"props":res}))
+					//console.log("Received object as result ="+JSON.stringify({"props":res}))
  				} else {
 					messageStack[ind].end();
 					console.log("onDevPropChange: Result NOT OK result="+result+" stuff="+retProps(stuff))
@@ -319,9 +317,9 @@ handleSSDPEvents.onDevPropChange = function(dev, prop, val,ind) {
 				console.log("onDevPropChange: Weird response but no request received") 
 			}
 		} else {
-			console.log("onDevPropChange: (3)" + dev.did + " response received id=" + ind + " prop: " + prop + " result is "+ result)
+			//console.log("onDevPropChange: (3)" + dev.did + " response received id=" + ind + " prop: " + prop + " result is "+ result)
 		}
-		console.log("onDevPropChange: host:port=" + dev.host + ":" + dev.port + " model=" + dev.model + " bright:hue:sat=" + dev.bright + ":" + dev.hue + ":" + dev.sat)
+		//console.log("onDevPropChange: host:port=" + dev.host + ":" + dev.port + " model=" + dev.model + " bright:hue:sat=" + dev.bright + ":" + dev.hue + ":" + dev.sat)
 	}
 function writeDeviceDescriptionResponse(resp,bridgeMac,devMac,devName,devIP) {
 	resp.write("<?xml version=\"1.0\"?> ");

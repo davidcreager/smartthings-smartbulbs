@@ -202,18 +202,21 @@ private getDeviceID(number) {
 
 
 def installed() {
+	log.debug("installed: setting bridgeIP and port to blank, was " + state.bridgeIP + ":" + state.bridgePort )
+	state.bridgeIP=""
+	state.bridgePort=""
 	initialize()
 }
 
 def updated() {
+	log.debug("updated:  bridgeIP and port=" + state.bridgeIP + ":" + state.bridgePort )
 	unsubscribe()
     unschedule()
 	initialize()
 }
 
 def initialize() {
-	state.bridgeIP=""
-	state.bridgePort=""
+	log.debug("initialize:  bridgeIP and port=" + state.bridgeIP + ":" + state.bridgePort )	
     ssdpSubscribe()
     runEvery5Minutes("ssdpDiscover")
 }
@@ -449,31 +452,17 @@ public  Map getQueryMap( query)
     return map;
 }
 
-
-
 def doThis(childDevice,command) {
+	if (childDevice==null) {log.debug("doThis:childDevice is null")}
 	def parsedCommand=new URI(command)
     def value=""
-    if (parsedCommand.query) value=getQueryMap(parsedCommand.query)["value"]
-	if (childDevice==null) {log.debug("doThis:childDevice is null")}
+    if (parsedCommand.query) value = getQueryMap(parsedCommand.query)["value"]
 	def id = childDevice.device?.deviceNetworkId
 	def newURI="/HubAction/" + id + command
-	log.debug("doThis: newuri=" + newURI + " name=" + childDevice?.device?.name + " bridgeip=" + state.bridgeIP + ":" + state.bridgePort
-    							+ " command=" + command + " value=" + value)
-	
-    def cSwitch = childDevice.device?.currentValue("switch")
-    def cLevel = childDevice.device?.currentValue("level")
-    //def cTemp = childDevice.device?.currentState("colorTemperature").value
-    //log.debug("doThis: Debug: switch=" + cSwitch + " level=" + cLevel + " colorTemperature=" + cTemp)
-
-	def cfirmware = childDevice.getDeviceDataByName("firmware")
-    def cDevIP = childDevice.getDeviceDataByName("devIP")
-    log.debug("doThis: Debug: firmware=" + cfirmware + " devIP=" + cDevIP)
-
-    log.debug("createSwitchEvent: setSwitch="+setSwitch+" setLevel="+setLevel+" currentstate="+currentState+" childdevice id="+childDevice?.device?.deviceNetworkId)
-
   	def host = state.bridgeIP+":"+state.bridgePort
   	def headers = getHeader(userpass,host)
+	log.debug("doThis: newuri=" + newURI + " name=" + childDevice?.device?.name + " bridgeip=" + state.bridgeIP + ":" + state.bridgePort
+    							+ " command=" + command + " value=" + value + " bridge mac=" + state.bridgeMac)    
 	if (state.bridgeMac && state.bridgeIP) {
 		sendHubCommand(new physicalgraph.device.HubAction([
 			method : "GET",
@@ -490,56 +479,28 @@ def doThis(childDevice,command) {
 }
 
 void lightsHandler(physicalgraph.device.HubResponse hubResponse) {
-		def resp = hubResponse.json
-        log.debug("lightsHandler: method=" + resp?.method + " params=" + resp?.params + " value=" + resp?.params?.value)    
-        if (resp?.params?.value) {
-        	log.debug("lightsHandler: value=" + resp?.params?.value + " (1)=" + resp?.params?.value[0] + " (2)=" + resp?.params?.value[1] + " (3)=" + resp?.params?.value[2])
-        }
-        if (resp?.stColor) {
-        	log.debug("lightsHandler: stColor="+resp.stColor)
-        }
-        if (resp?.params) {
-        	def deb=""
-        	for ( entry in resp?.params ) {
-            	if (deb=="") {
-                	deb=entry.key+":"+entry.value
-                } else {
-                	deb=deb+","+entry.key+":"+entry.value
-                }
-            }
-            log.debug("lightsHandler: DEBUG: Params = " + deb)
-        }
-        //log.debug("lightsHandler: props="+resp?.props)
-        //log.debug("lightsHandler: received a callback to a command response.xml="+hubResponse.xml)
-        //log.debug("lightsHandler: json="+hubResponse.json)
-        //log.debug("lightsHandler: response="+hubResponse)
-        /*
-        //rgb?value=7405533 method=set_rgb 	value=[[g:255, b:221, r:112], smooth, 500] (1)=[g:255, b:221, r:112] (2)=smooth (3)=500
-		//set_bright?value=100 method=set_bright 	value=[100, smooth, 500] (1)=100 (2)=smooth (3)=500
-        //on?transition=null method=set_power 		value=[on, smooth, 500] (1)=on (2)=smooth (3)=500
-		*/
+    def resp = hubResponse.json
+    log.debug("lightsHandler: method=" + resp?.method + " params=" + resp?.params + " value=" + resp?.params?.value)    
+    if (resp?.params?.value) {
+        log.debug("lightsHandler: value=" + resp?.params?.value + " stColor=" + resp?.stColor + " (1)=" + resp?.params?.value[0] + " (2)=" + resp?.params?.value[1] + " (3)=" + resp?.params?.value[2])
+    }
 	if (resp?.deviceID) {
         def childDevice=getChildDevice(resp?.deviceID)
         if (childDevice) {
             if (resp?.method=="set_power") {
-                //createSwitchEvent(childDevice,resp?.params?.value[0])
                 childDevice.generateEvent([name: "switch", value: resp?.params?.value[0], displayed: false])
             } else if (resp?.method=="set_rgb") {
             	if (resp?.stColor) {
-                	//createSwitchEvent(childDevice,"color",resp.stColor)
                     childDevice.generateEvent([name: "color", value: resp.stColor , displayed: false])
 				} else {
-                	//createSwitchEvent(childDevice,"color",[red:resp?.params?.value[0].r,green:resp?.params?.value[0].g,blue:resp?.params?.value[0].b] )
                     childDevice.generateEvent([name: "color", value: [red:resp?.params?.value[0].r,
                     													green:resp?.params?.value[0].g,
                                                                         blue:resp?.params?.value[0].b,
                                                                         displayed: false]])
                 }
             } else if (resp?.method=="set_bright") {
-                //createSwitchEvent(childDevice,"level",resp?.params?.value[0])
                 childDevice.generateEvent([name: "level", value: resp?.params?.value[0] , displayed: false])
             } else if (resp?.method=="set_ctx") {
-                //createSwitchEvent(childDevice,"ctx",resp?.params?.value[0])
                 childDevice.generateEvent([name: "colorTemperature", value: resp?.params?.value[0] , displayed: false])
             } else if (resp?.method=="get_props") {
             	childDevice.generateEvent([name: "firmware", value: childDevice.getDeviceDataByName("firmware") , displayed: false])
@@ -571,33 +532,6 @@ void lightsHandler(physicalgraph.device.HubResponse hubResponse) {
     	log.debug("lightsHandler: ERROR deviceID is null - resp="+resp)
     }
 
-}
-
-private void createSwitchEvent(childDevice, setSwitch, setLevel = null) {
-	if (setLevel == null) {
-		setLevel = childDevice.device?.currentValue("Switch Level")
-	}
-	//log.debug("createSwitchEvent: setSwitch="+setSwitch+" setLevel="+setLevel+" childdevice id="+childDevice?.device?.deviceNetworkId)
-	// Create on, off, turningOn or turningOff event as necessary
-	def currentState = childDevice.device?.currentValue("switch")
-    log.debug("createSwitchEvent: setSwitch="+setSwitch+" setLevel="+setLevel+" currentstate="+currentState+" childdevice id="+childDevice?.device?.deviceNetworkId)
-    def devices=getDevices()
-    
-    if (setSwitch=="off") {
-    	childDevice.generateEvent([name: "switch", value: "off", displayed: false])
-    } else if (setSwitch=="on") {
-    	childDevice.generateEvent([name: "switch", value: "on", displayed: false])
-    } else if (setSwitch=="color") {
-    	childDevice.generateEvent([name: "color", value: setLevel , displayed: false])
-        childDevice.generateEvent([name: "setColor", value: setLevel , displayed: false])
-    } else if (setSwitch=="level") {
-    	childDevice.generateEvent([name: "level", value: setLevel , displayed: false])
-        childDevice.generateEvent([name: "setLevel", value: setLevel , displayed: false])
-    } else if (setSwitch=="ctx") {
-    	childDevice.generateEvent([name: "colorTemperature", value: setLevel , displayed: false])
-        //childDevice.generateEvent([name: "setColorTemperature", value: setLevel , displayed: false])    
-    }
-    
 }
 
 private getHeader(userpass = null,hostIP=null){

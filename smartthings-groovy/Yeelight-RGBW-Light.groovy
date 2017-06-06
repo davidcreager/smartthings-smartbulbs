@@ -129,7 +129,7 @@ def installed() {
 }
 
 def configure() {
-    logging("configure()", 1)
+    log.debug "configure()"
     def cmds = []
     cmds = update_needed_settings()
     if (cmds != []) cmds
@@ -137,7 +137,7 @@ def configure() {
 
 def updated()
 {
-    logging("updated()", 1)
+    log.debug "updated()"
     def cmds = [] 
     cmds = update_needed_settings()
     sendEvent(name: "checkInterval", value: 12 * 60 * 2, data: [protocol: "lan", hubHardwareId: device.hub.hardwareID], displayed: false)
@@ -317,27 +317,9 @@ def reset() {
 }
 
 def refresh() {
-
-    def address = getCallBackAddress()
-
-    def result = new physicalgraph.device.HubAction(
-        [method: "POST",
-        path: "/subscribe",
-        headers: [
-            HOST: getDataValue("bridgeIP")+":"+getDataValue("bridgePort"),
-            CALLBACK: "<http://${address}/notify>",
-            NT: "upnp:event",
-            TIMEOUT: "Second-28800"
-        ],
-        query: [
-            callback: address
-        ]],
-        ""//getDeviceDataByName("devMac")
-    )
-	result
-	log.debug "refresh() bridgeIP="+getDataValue("bridgeIP")+":"+getDataValue("bridgePort")+" callback="+"<http://${address}/notify"+" devMac="+getDeviceDataByName("devMac")
-    sendToParent(this,"/refresh")
+	sendToParent(this,"/refresh")
 }
+
 
 def ping() {
     log.debug "ping()"
@@ -659,12 +641,18 @@ def update_needed_settings()
     def configuration = parseXml(configuration_model())
     def isUpdateNeeded = "NO"
     
-    cmds << sendToParent(this,"/configSet?name=haip&value=${device.hub.getDataValue("localIP")}")
-    cmds << sendToParent(this,"/configSet?name=haport&value=${device.hub.getDataValue("localSrvPortTCP")}")
-    
+    //cmds << sendToParent(this,"/configSet?name=haip&value=${device.hub.getDataValue("localIP")}")
+    //cmds << sendToParent(this,"/configSet?name=haport&value=${device.hub.getDataValue("localSrvPortTCP")}")
+    log.debug("update_needed_settings: starts")
+	configuration.Value.each {
+    	log.debug("update_needed_settings: Config stuff - ${it.@index} value is" + it.@value )
+    }
+    log.debug("update_needed_settings: ends")
+/*    
     configuration.Value.each
     {     
         if ("${it.@setting_type}" == "lan" && it.@disabled != "true"){
+        	//log.debug("Config stuff - ${it.@index} value is" + it.@value )
             if (currentProperties."${it.@index}" == null)
             {
                if (it.@setonly == "true"){
@@ -684,8 +672,9 @@ def update_needed_settings()
             } 
         }
     }
+*/
     
-    sendEvent(name:"needUpdate", value: isUpdateNeeded, displayed:false, isStateChange: true)
+    //sendEvent(name:"needUpdate", value: isUpdateNeeded, displayed:false, isStateChange: true)
     return cmds
 }
 
@@ -703,10 +692,6 @@ def configuration_model()
 {
 '''
 <configuration>
-<Value type="password" byteSize="1" index="password" label="Password" min="" max="" value="" setting_type="preference" fw="">
-<Help>
-</Help>
-</Value>
 <Value type="list" byteSize="1" index="pos" label="Boot Up State" min="0" max="2" value="0" setting_type="lan" fw="">
 <Help>
 Default: Off
@@ -753,10 +738,6 @@ If \"Custom\" is chosen above as the default color. Default level does not apply
 <Help>
 </Help>
 </Value>
-<Value type="boolean" byteSize="1" index="channels" label="Mutually Exclusive RGB / White.\nOnly allow one or the other" min="" max="" value="false" setting_type="preference" fw="">
-<Help>
-</Help>
-</Value>
 <Value type="list" byteSize="1" index="transitionspeed" label="Transition Speed" min="1" max="3" value="1" setting_type="lan" fw="">
 <Help>
 Default: Slow
@@ -771,13 +752,6 @@ Automatically turn the switch off after this many seconds.
 Range: 0 to 65536
 Default: 0 (Disabled)
 </Help>
-</Value>
-<Value type="list" index="logLevel" label="Debug Logging Level?" value="0" setting_type="preference" fw="">
-<Help>
-</Help>
-    <Item label="None" value="0" />
-    <Item label="Reports" value="1" />
-    <Item label="All" value="99" />
 </Value>
 </configuration>
 '''
