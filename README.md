@@ -1,8 +1,10 @@
+# yeelight-smartthings
+Provides a smartapp, device handler and node.js server to manage yeelight bulbs
 ## V0.0.1
 First release.    
 Provides a smartapp, device handler and node.js server to manage yeelight bulbs
-
 ### Installation
+**The yeelight bulbs must be set in developer mode (using settings in the yeelight supplied app )**
 ##### Create Directory /var/opt/node/yeelight-smartthings
 **sudo mkdir /var/opt/node/yeelight-smartthings** *(You may also need to create /var/opt/node if it is not on your system)*
 ##### Create user and group to run the process
