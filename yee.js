@@ -138,24 +138,28 @@ YeeDevice = function (did, loc, model, power, bri,
 		this.connect(this.connCallback);
     }.bind(this);
     
-    this.setPower = function(is_on,idn) {
+    this.setPower = function(is_on,effect,duration,idn) {
+		var durationVal = parseInt(duration,10)
         this.power = is_on;
-		var req = {id:(idn)?idn:1, method:'set_power', params:[(!is_on) ? "off" : "on", "smooth", 500]};
+		var req = {id:(idn)?idn:1, method:'set_power', params:[(!is_on) ? "off" : "on",
+							(effect=="smooth"||effect=="sudden")?effect:"sudden",(durationVal && durationVal>30 && durationVal<2000) ? durationVal:500]};
 		this.sendCmd(req);
     }.bind(this);
 
-    this.setBright = function(val,idn) {
+    this.setBright = function(val,effect,duration,idn) {
+		var durationVal = parseInt(duration,10)
         this.bright = val;
 		var req = {id:(idn)?idn:1, method:'set_bright',
-		   params:[val, 'smooth', 500]};
+		   params:[val, (effect=="smooth"||effect=="sudden")?effect:"sudden",(durationVal && durationVal>30 && durationVal<2000) ? durationVal:500]};
 		this.sendCmd(req);
     }.bind(this);
 
-    this.setColor = function (hue, sat,idn) {
+    this.setColor = function (hue, sat,effect,duration,idn) {
+		var durationVal = parseInt(duration,10)
         this.hue = hue;
         this.sat = sat;
 		var req = {id:(idn)?idn:1,  method:'set_hsv',
-		   params:[hue, sat, 'smooth', 500]};
+		   params:[hue, sat, (effect=="smooth"||effect=="sudden")?effect:"sudden",(durationVal && durationVal>30 && durationVal<2000) ? durationVal:500]};
 		this.sendCmd(req);
     }.bind(this);
 
@@ -170,25 +174,28 @@ YeeDevice = function (did, loc, model, power, bri,
 		   params:[new Buffer(name).toString('base64')]};
 		this.sendCmd(req);
     }.bind(this);
-    this.setRGB = function (r,g,b,idn) {
+    this.setRGB = function (r,g,b,effect,duration,idn) {
+		var durationVal = parseInt(duration,10)
 		this.rgb = RGBToDec(r,g,b)
-		console.log("setRGB r="+r+" g="+g+" b="+b+" rgb func="+RGBToDec(r,g,b)+" this.rgb="+this.rgb)
+		//console.log("setRGB r="+r+" g="+g+" b="+b+" rgb func="+RGBToDec(r,g,b)+" this.rgb="+this.rgb)
 		var req = {id:(idn)?idn:1, method:'set_rgb',
-			params:[this.rgb,"smooth",500]}
+			params:[this.rgb,(effect=="smooth"||effect=="sudden")?effect:"sudden",(durationVal && durationVal>30 && durationVal<2000)?durationVal:500]}
 		this.sendCmd(req);
     }.bind(this);	
-    this.set_bright = function (level,idn) {
+    this.set_bright = function (level,effect,duration,idn) {
+		var durationVal = parseInt(duration,10)
 		this.bright = parseInt(level,10)
 		console.log("setBright bright="+level)
 		var req = {id:(idn)?idn:1, method:'set_bright',
-			params:[this.bright,"smooth",500]}
+			params:[this.bright,(effect=="smooth"||effect=="sudden")?effect:"sudden",(durationVal && durationVal>30 && durationVal<2000)?durationVal:500]}
 		this.sendCmd(req);
     }.bind(this);
-    this.set_ctx = function (level,idn) {
+    this.set_ctx = function (level,effect,duration,idn) {
+		var durationVal = parseInt(duration,10)
 		this.ctx = parseInt(level,10)
 		console.log("setCTX ctx="+level)
 		var req = {id:(idn)?idn:1, method:'set_ct_abx',
-			params:[this.ctx,"smooth",500]}
+			params:[this.ctx,(effect=="smooth"||effect=="sudden")?effect:"sudden",(durationVal && durationVal>30 && durationVal<2000)?durationVal:500]}
 		this.sendCmd(req);
     }.bind(this);
     this.get_props = function (idn) {

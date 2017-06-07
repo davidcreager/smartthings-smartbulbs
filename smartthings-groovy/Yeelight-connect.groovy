@@ -1,7 +1,7 @@
 /**
  *  Yeelight
  *
- *  Copyright 2017 WEI WEI
+ *  Copyright 2017 David Creager
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -447,7 +447,7 @@ public  Map getQueryMap( query)
         def value
         if (param.split("=").size()>1) value = param.split("=")[1];
         map["${name}"]=value
-        log.debug("getQueryMap: value="+value+" params="+params)
+        //log.debug("getQueryMap: value="+value+" params="+params)
     }
     return map;
 }
@@ -502,6 +502,10 @@ void lightsHandler(physicalgraph.device.HubResponse hubResponse) {
                 childDevice.generateEvent([name: "level", value: resp?.params?.value[0] , displayed: false])
             } else if (resp?.method=="set_ctx") {
                 childDevice.generateEvent([name: "colorTemperature", value: resp?.params?.value[0] , displayed: false])
+            } else if (resp?.method=="configGet") {
+            	childDevice.update_current_properties(resp?.params)
+            } else if (resp?.method=="configSet") {
+            	childDevice.update_current_properties(resp?.params)
             } else if (resp?.method=="get_props") {
             	childDevice.generateEvent([name: "firmware", value: childDevice.getDeviceDataByName("firmware") , displayed: false])
                 childDevice.generateEvent([name: "devIP", value: childDevice.getDeviceDataByName("devIP") , displayed: false])
@@ -522,7 +526,7 @@ void lightsHandler(physicalgraph.device.HubResponse hubResponse) {
                 }
 
             } else {
-                log.debug("doThis: Unknown command "+command)
+                log.debug("doThis: Unknown command "+resp?.method)
                 return
             }
 		} else {

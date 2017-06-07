@@ -30,7 +30,7 @@ const serverPort=NCONF.get("bridge").port
 const bridgeMac=require('node-getmac').replace(/:/g,"").toUpperCase()
 const yeelightTransition=NCONF.get("yeelight").transition
 var handleSSDPEvents = {}
-var smartSDDPs=[],smartLocations=[],smartIDs=[],smartMacs=[],macSmarts=[],smartDevs=[]
+var smartSDDPs=[],smartLocations=[],smartIDs=[],smartMacs=[],macSmarts=[],smartDevs=[],yeeConfigs=[]
 var messageStack=[],deviceNameForResponse=[]
 var properties=["power","name","bright","ct","rgb","hue","sat","color_mode","delayoff","flowing","flow_params","music_on"]
 var yeeSSDPHandler  = new yeeLight.YeeAgent("0.0.0.0",handleSSDPEvents)
@@ -43,6 +43,16 @@ var	yeeBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn:"YeeBridge
 	yeeBridgeSSDP.start()
 	
 var server = http.createServer(httpRequestHandler)
+var configs={pos:"off", transition:"Sudden", dcolor:"Previous", custom:"", level:100, transitionspeed:250, autooff:0}
+/*
+<Value type="list" byteSize="1" index="pos" label="Boot Up State" min="0" max="2" value="0" setting_type="lan" fw="">
+<Value type="list" byteSize="1" index="transition" label="Default Transition" min="0" max="1" value="0" setting_type="preference" fw="">
+<Value type="list" byteSize="1" index="dcolor" label="Default Color" min="" max="" value="" setting_type="lan" fw="">
+<Value type="text" byteSize="1" index="custom" label="Custom Color in Hex" min="" max="" value="" setting_type="preference" fw="">
+<Value type="number" byteSize="1" index="level" label="Default Level" min="1" max="100" value="" setting_type="preference" fw="">
+<Value type="list" byteSize="1" index="transitionspeed" label="Transition Speed" min="1" max="3" value="1" setting_type="lan" fw="">
+<Value type="number" byteSize="1" index="autooff" label="Auto Off" min="0" max="65536" value="0" setting_type="lan" fw="" disabled="true">
+*/
 
 server.listen(serverPort)
 function retProps(obj){
@@ -87,6 +97,8 @@ function httpRequestHandler(req,resp) {
 		var comm=""
 		if (req.url.includes("HubAction") || req.url.includes("HubVerify")  ) {
 			var url=URL.parse(req.url, true)
+			console.log("httpRequestHandler: received request url=" + req.url + " query=" + retProps(url.query))
+			//console.log("httpRequestHandler  transition=" + url.query.transition + " transitionspeed=" + url.query.transitionspeed)
 			var posAfterHubAction=req.url.indexOf("/HubAction/")+11
 			var posAfterMac=req.url.indexOf("/",posAfterHubAction)+1
 			var posAfterCommand=req.url.indexOf("?",posAfterMac)
@@ -121,20 +133,24 @@ function httpRequestHandler(req,resp) {
 			//				" command=" + comm + " url=" +req.url+ " query=" + retProps(url.query))
 			if (smartDevs[devName]) {
 				devIP=smartDevs[devName].host
+				var yeeLightEffect=url.query.transition
+				var yeeLightDuration=url.query.transitionspeed
+				if ( (yeeLightEffect!="Smooth") && ((yeeLightEffect!="Sudden")) ) {(yeeLightEffect=="Sudden")};
+				if ( (!yeeLightDuration) || (yeeLightDuration<30) || (yeeLightDuration>2000) ) {yeeLightDuration=500};
 				var id = 1 + (Math.random() * 1e3) & 0xff;		
 				switch (comm) {
 					case "on":			
 					case "off":
-						smartDevs[devName].setPower((comm=="on")?1:0,id)
-						doCommand(resp,devMac,"set_power",{"value":[comm,"smooth",500]},id,devName,null)
+						smartDevs[devName].setPower((comm=="on")?1:0,yeeLightEffect.toLowerCase(),yeeLightDuration,id)
+						doCommand(resp,devMac,"set_power",{"value":[comm,yeeLightEffect.toLowerCase(),yeeLightDuration]},id,devName,null)
 					break
 					case "set_bright":
-						smartDevs[devName].set_bright(url.query.value,id)
-						doCommand(resp,devMac,"set_bright",{"value":[url.query.value,"smooth",500]},id,devName,null)
+						smartDevs[devName].set_bright(url.query.value,yeeLightEffect.toLowerCase(),yeeLightDuration,id)
+						doCommand(resp,devMac,"set_bright",{"value":[url.query.value,yeeLightEffect.toLowerCase(),yeeLightDuration]},id,devName,null)
 					break
 					case "ctx":
-						smartDevs[devName].set_ctx(url.query.value,id)
-						doCommand(resp,devMac,"set_ctx",{"value":[url.query.value,"smooth",500]},id,devName,null)
+						smartDevs[devName].set_ctx(url.query.value,yeeLightEffect.toLowerCase(),yeeLightDuration,id)
+						doCommand(resp,devMac,"set_ctx",{"value":[url.query.value,yeeLightEffect.toLowerCase(),yeeLightDuration]},id,devName,null)
 					break
 					case "rgb":
 						var stColorValue, rgb, hex, hsl
@@ -168,8 +184,8 @@ function httpRequestHandler(req,resp) {
 											hex:hex }
 						
 						//console.log("httpRequestHandler rgb="+retProps(rgb) + " hsl=" + retProps(hsl) + " hex=" + hex + " stColorValue=" + retProps(stColorValue))
-						smartDevs[devName].setRGB(stColorValue.red,stColorValue.green,stColorValue.blue,id)
-						doCommand(resp,devMac,"set_rgb",{"value":[rgb,"smooth",500]},id,devName,stColorValue)
+						smartDevs[devName].setRGB(stColorValue.red,stColorValue.green,stColorValue.blue,yeeLightEffect.toLowerCase(),yeeLightDuration,id)
+						doCommand(resp,devMac,"set_rgb",{"value":[rgb,yeeLightEffect.toLowerCase(),yeeLightDuration]},id,devName,stColorValue)
 					break
 					case "refresh":
 						smartDevs[devName].get_props(id)
@@ -177,11 +193,28 @@ function httpRequestHandler(req,resp) {
 						deviceNameForResponse[id]=devName		
 					break
 					case "configGet":
-						console.log("httpRequestHandler: Config call received params=" + retProps(url.query))
-						resp.writeHead(200, {"Content-Type": "text/xml"});
-						resp.write(JSON.stringify({"deviceID":devMac,"stColor":null,"method":"configGet","params":url.query}))
+					case "configSet":
+						//console.log("httpRequestHandler: " + comm + " received params=" + retProps(url.query))
+						resp.writeHead(200, {"Content-Type": "application/json"}); //application/json
+						var retval={}
+						if (yeeConfigs[devName]) {
+							//console.log("httpRequestHandler:Configs found     : " + retProps(yeeConfigs[devName]))
+							if (comm=="configSet") {
+								yeeConfigs[devName][url.query["name"]]=url.query["value"]
+							}
+							if (!yeeConfigs[devName][url.query["name"]]) {
+								yeeConfigs[devName][url.query["name"]]=configs["value"]
+								
+							}
+							retval[url.query["name"]]=yeeConfigs[devName][url.query["name"]]
+							//console.log("httpRequestHandler:Configs returning: " + retProps(retval))
+							resp.write(JSON.stringify({"deviceID":devMac,"stColor":null,"method":comm,"params":retval}))
+						} else {
+							//console.log("httpRequestHandler:found Configs Not found returning default")
+							resp.write(JSON.stringify({"deviceID":devMac,"stColor":null,"method":comm,"params":configs}))
+						}
 						resp.end(this.respDone);
-					break
+					break			
 					case "deviceDescription":
 						resp.writeHead(200, {"Content-Type": "text/xml"});
 						writeDeviceDescriptionResponse(resp,bridgeMac,devMac,devName,devIP)
@@ -229,6 +262,7 @@ handleSSDPEvents.onDevFound = function(dev) {
 			smartSDDPs[did]=null
 			smartIDs[did]=dev.name
 			smartLocations[did]=dev.host+":"+dev.port
+			yeeConfigs[did]= Object.assign({}, configs);
 		}
 		
 	}
@@ -286,7 +320,7 @@ handleSSDPEvents.onDevPropChange = function(dev, prop, val,ind) {
 				} catch(e) {
 					result="Invalid result"
 				}
-				//console.log("onDevPropChange: (2)" + dev.did + " response received id=" + ind + " prop: " + prop + " result is "+ result + " response.finished=" + messageStack[ind].finished)					
+				console.log("onDevPropChange: (2)" + dev.did + " response received id=" + ind + " prop: " + prop + " result is "+ result + " response.finished=" + messageStack[ind].finished)					
 				var res={}
 				if (result=="ok") {
 					messageStack[ind].end();

@@ -132,6 +132,7 @@ def configure() {
     log.debug "configure()"
     def cmds = []
     cmds = update_needed_settings()
+    log.debug("Configure(): cmds="+cmds)
     if (cmds != []) cmds
 }
 
@@ -204,11 +205,11 @@ def parse(description) {
 }
 
 void on() {
-	sendToParent(this,"/on?transition=$transition")
+	sendToParent(this,"/on")
 }
 
 void off() {
-	sendToParent(this,"/off?transition=$transition")
+	sendToParent(this,"/off")
 }
 
 def setLevel(level) {
@@ -285,6 +286,13 @@ private sendToParent(thisDevice,uri){
     if (thisDevice==null) {
     	log.debug("sendToParent thisDevice is null")
     } else {
+    	if (uri.indexOf("config")==-1) {
+            if (uri.indexOf("?")==-1){
+                uri = uri + "?transition=" + state.currentProperties.transition + "&transitionspeed=" + state.currentProperties.transitionspeed
+            } else {
+                uri = uri + "&transition=" + state.currentProperties.transition + "&transitionspeed=" + state.currentProperties.transitionspeed
+            }
+        }
 		parent.doThis(thisDevice,uri)
    }
 	
@@ -412,8 +420,8 @@ private setDeviceNetworkId(ip, port = null){
 }
 
 private updateDNI() { 
-		log.debug("old was "+device.deviceNetworkId+" new is " + state.dni)
-        log.debug("devIP is "+getDeviceDataByName("devIP")+" bridgeIP is "+getDeviceDataByName("bridgeIP")+" devMac="+getDeviceDataByName("devMac")+" bridgeMac="+getDeviceDataByName("bridgemac"))
+		//log.debug("old was "+device.deviceNetworkId+" new is " + state.dni)
+        //log.debug("devIP is "+getDeviceDataByName("devIP")+" bridgeIP is "+getDeviceDataByName("bridgeIP")+" devMac="+getDeviceDataByName("devMac")+" bridgeMac="+getDeviceDataByName("bridgemac"))
         state.dni=getDeviceDataByName("devMac")
     if (state.dni != null && state.dni != "" && device.deviceNetworkId != state.dni) {
        device.deviceNetworkId = state.dni
@@ -615,21 +623,17 @@ def generate_preferences(configuration_model)
 
 def update_current_properties(cmd)
 {
-    def currentProperties = state.currentProperties ?: [:]
-    currentProperties."${cmd.name}" = cmd.value
-
-    if (settings."${cmd.name}" != null)
-    {
-        if (convertParam("${cmd.name}", settings."${cmd.name}").toString() == cmd.value)
-        {
-            sendEvent(name:"needUpdate", value:"NO", displayed:false, isStateChange: true)
-        }
-        else
-        {
-            sendEvent(name:"needUpdate", value:"YES", displayed:false, isStateChange: true)
+	def currentProperties = state.currentProperties ?: [:]
+    def needUpdate=false
+    for ( entry in cmd ) {
+        currentProperties."${entry.key}"=entry.value
+        if ( (settings."${entry.key}" == null) || (convertParam("${entry.key}", settings."${entry.key}").toString() != entry.value) ) {
+        	log.debug("update_current_properties: configGet: " + entry.key + " was=" +currentProperties?."${entry.key}" + " will set to " + entry.value)
+        	needUpdate=true
         }
     }
     state.currentProperties = currentProperties
+	sendEvent(name:"needUpdate", value:(needUpdate)?"Yes":"No", displayed:false, isStateChange: true)
 }
 
 
@@ -641,47 +645,44 @@ def update_needed_settings()
     def configuration = parseXml(configuration_model())
     def isUpdateNeeded = "NO"
     
-    //cmds << sendToParent(this,"/configSet?name=haip&value=${device.hub.getDataValue("localIP")}")
-    //cmds << sendToParent(this,"/configSet?name=haport&value=${device.hub.getDataValue("localSrvPortTCP")}")
     log.debug("update_needed_settings: starts")
-	configuration.Value.each {
-    	log.debug("update_needed_settings: Config stuff - ${it.@index} value is" + it.@value )
-    }
-    log.debug("update_needed_settings: ends")
-/*    
     configuration.Value.each
     {     
         if ("${it.@setting_type}" == "lan" && it.@disabled != "true"){
-        	//log.debug("Config stuff - ${it.@index} value is" + it.@value )
+        	//log.debug("Config stuff (1): looking at  - ${it.@index} value is " + it.@value )
             if (currentProperties."${it.@index}" == null)
             {
                if (it.@setonly == "true"){
-                  logging("Setting ${it.@index} will be updated to ${convertParam("${it.@index}", it.@value)}", 2)
+                  //log.debug("Config stuff (2): Setting ${it.@index} will be updated to ${convertParam("${it.@index}", it.@value)}")
+                  //log.debug("Config stuff (2): cmd=" + "/configSet?name=${it.@index}&value=${convertParam("${it.@index}", it.@value)}")
                   cmds << sendToParent(this,"/configSet?name=${it.@index}&value=${convertParam("${it.@index}", it.@value)}")
                } else {
                   isUpdateNeeded = "YES"
-                  logging("Current value of setting ${it.@index} is unknown", 2)
+                  //log.debug("Config stuff (3): Current value of setting ${it.@index} is unknown")
+                  //log.debug("Config stuff (3): cmd=" + "/configGet?name=${it.@index}")
                   cmds << sendToParent(this,"/configGet?name=${it.@index}")
+                  
                }
             }
             else if ((settings."${it.@index}" != null || it.@hidden == "true") && currentProperties."${it.@index}" != (settings."${it.@index}"? convertParam("${it.@index}", settings."${it.@index}".toString()) : convertParam("${it.@index}", "${it.@value}")))
             { 
                 isUpdateNeeded = "YES"
-                logging("Setting ${it.@index} will be updated to ${convertParam("${it.@index}", settings."${it.@index}")}", 2)
+                //log.debug("Config stuff (4): Setting ${it.@index} will be updated to ${convertParam("${it.@index}", settings."${it.@index}")}")
                 cmds << sendToParent(this,"/configSet?name=${it.@index}&value=${convertParam("${it.@index}", settings."${it.@index}")}")
+                //log.debug("Config stuff (4): cmd=" + "/configSet?name=${it.@index}&value=${convertParam("${it.@index}", settings."${it.@index}")}")
             } 
         }
     }
-*/
     
-    //sendEvent(name:"needUpdate", value: isUpdateNeeded, displayed:false, isStateChange: true)
+    sendEvent(name:"needUpdate", value: isUpdateNeeded, displayed:false, isStateChange: true)
     return cmds
 }
 
 def convertParam(name, value) {
 	switch (name){
         case "dcolor":
-            getDefault()
+            //getDefault()
+            value
         break
         default:
         	value
@@ -699,12 +700,29 @@ Default: Off
     <Item label="Off" value="0" />
     <Item label="On" value="1" />
 </Value>
-<Value type="list" byteSize="1" index="transition" label="Default Transition" min="0" max="1" value="0" setting_type="preference" fw="">
+<Value type="list" byteSize="1" index="transition" label="Default Transition" min="0" max="1" value="0" setting_type="lan" fw="">
 <Help>
-Default: Fade
+Corresponds to Yeelight transition effect. Supports two values: "sudden" and "smooth". If effect is "sudden",
+then the color temperature or Color or brightness will be changed directly to target value, if "Smooth" then the 
+change will be gradual over the number of milliseconds specified in Transition Duration
+Default: Sudden
 </Help>
-    <Item label="Fade" value="true" />
-    <Item label="Flash" value="false" />
+    <Item label="Sudden" value="Sudden" />
+    <Item label="Smooth" value="Smooth" />
+</Value>
+<Value type="number" byteSize="1" index="transitionspeed" label="Transition Duration" min="30" max="5000" value="1" setting_type="lan" fw="">
+<Help>
+Default: 300
+Corresponds to yeelight duration. Specifies the total time of the gradual changing. The unit is
+milliseconds. The minimum support duration is 30 milliseconds
+</Help>
+</Value>
+<Value type="number" byteSize="1" index="autooff" label="Auto Off" min="0" max="65536" value="0" setting_type="lan" fw="" disabled="true">
+<Help>
+Automatically turn the switch off after this many seconds.
+Range: 0 to 65536
+Default: 0 (Disabled)
+</Help>
 </Value>
 <Value type="list" byteSize="1" index="dcolor" label="Default Color" min="" max="" value="" setting_type="lan" fw="">
 <Help>
@@ -738,21 +756,6 @@ If \"Custom\" is chosen above as the default color. Default level does not apply
 <Help>
 </Help>
 </Value>
-<Value type="list" byteSize="1" index="transitionspeed" label="Transition Speed" min="1" max="3" value="1" setting_type="lan" fw="">
-<Help>
-Default: Slow
-</Help>
-    <Item label="Slow" value="1" />
-    <Item label="Medium" value="2" />
-    <Item label="Fast" value="3" />
-</Value>
-<Value type="number" byteSize="1" index="autooff" label="Auto Off" min="0" max="65536" value="0" setting_type="lan" fw="" disabled="true">
-<Help>
-Automatically turn the switch off after this many seconds.
-Range: 0 to 65536
-Default: 0 (Disabled)
-</Help>
-</Value>
 </configuration>
 '''
 }
@@ -767,4 +770,44 @@ private Integer convertHexToInt(hex) {
 
 private String convertHexToIP(hex) {
     return [convertHexToInt(hex[0..1]),convertHexToInt(hex[2..3]),convertHexToInt(hex[4..5]),convertHexToInt(hex[6..7])].join(".")
+}
+private getDimmedColor(color, level) {
+   if(color.size() > 2){
+      def scaledColor = getScaledColor(color)
+      def rgb = scaledColor.findAll(/[0-9a-fA-F]{2}/).collect { Integer.parseInt(it, 16) }
+    
+      def r = hex(rgb[0] * (level.toInteger()/100))
+      def g = hex(rgb[1] * (level.toInteger()/100))
+      def b = hex(rgb[2] * (level.toInteger()/100))
+
+      return "${r + g + b}"
+   }else{
+      color = Integer.parseInt(color, 16)
+      return hex(color * (level.toInteger()/100))
+   }
+}
+
+private getDimmedColor(color) {
+   if (device.latestValue("level")) {
+      getDimmedColor(color, device.latestValue("level"))
+   } else {
+      return color.replaceAll("#","")
+   }
+}
+private getScaledColor(color) {
+   def rgb = color.findAll(/[0-9a-fA-F]{2}/).collect { Integer.parseInt(it, 16) }
+   def maxNumber = 1
+   for (int i = 0; i < 3; i++){
+     if (rgb[i] > maxNumber) {
+	    maxNumber = rgb[i]
+     }
+   }
+   def scale = 255/maxNumber
+   for (int i = 0; i < 3; i++){
+     rgb[i] = rgb[i] * scale
+   }
+   def myred = rgb[0]
+   def mygreen = rgb[1]
+   def myblue = rgb[2]
+   return rgbToHex([r:myred, g:mygreen, b:myblue])
 }

@@ -3,6 +3,8 @@ Provides a smartapp, device handler and node.js server to manage yeelight bulbs
 ## V0.0.1
 First release.    
 Provides a smartapp, device handler and node.js server to manage yeelight bulbs
+
+
 ### Installation
 **The yeelight bulbs must be set in developer mode (using settings in the yeelight supplied app )**
 ##### Create Directory /var/opt/node/yeelight-smartthings
@@ -28,10 +30,10 @@ Provides a smartapp, device handler and node.js server to manage yeelight bulbs
 **sudo systemctl status yeelight-smartthings**
 
 ## Todo
-Devicehandler - color default handling word processing
-Devicehandler - manage config
-server - manage defaults
-server - handle defaults
-server - name and icon
-server - cli ~~ip and port config and run as background~~
-All - either poll or subscribe, potentially needs to change deviceIDs to ip adresses
+Polling vs subscribe behavior
+Sort out Settings that define how a bulb starts up
+Investigate Color dimming and scaling (may not be a problem)
+
+
+
+
