@@ -43,7 +43,7 @@ def mainPage() {
            href "deviceDiscovery", title:"Discover Devices", description:""
         }
         section("Scene"){
-        	input(name:"scene", type:"enum",title:"Scene", options:["None", "Candle", "Date Night", "Notify", "Happy Birthday", 
+        	input(name:"scene", required:false, type:"enum",title:"Scene", options:["None", "Candle", "Date Night", "Notify", "Happy Birthday", 
             									"Welcome Home", "Movie Night", "Good Night", "Romantic", "Sunrise", "Sunset"])
         }
         section("Installed Devices"){
