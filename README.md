@@ -15,7 +15,7 @@ Provides a smartapp, device handler and node.js server to manage yeelight bulbs
 **getent group yeelights** *Check group created*
 **id yeelights** *Check user created in the yeelights group*
 ##### Download files from github
-**cd /var/opt/node/yeelight-smartthings**
+**cd /var/opt/node**
 **sudo git clone https://github.com/davidcreager/yeelight-smartthings.git**
 ##### Move files to correct directories
 **sudo cp /var/opt/node/yeelight-smartthings/yeelight-smartthings.service /etc/systemd/system/**
