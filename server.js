@@ -135,8 +135,9 @@ function httpRequestHandler(req,resp) {
 				devIP=smartDevs[devName].host
 				var yeeLightEffect=url.query.transition
 				var yeeLightDuration=url.query.transitionspeed
-				if ( (yeeLightEffect!="Smooth") && ((yeeLightEffect!="Sudden")) ) {(yeeLightEffect=="Sudden")};
+				if ( (yeeLightEffect!="Smooth") && ((yeeLightEffect!="Sudden")) ) {(yeeLightEffect="Sudden")};
 				if ( (!yeeLightDuration) || (yeeLightDuration<30) || (yeeLightDuration>2000) ) {yeeLightDuration=500};
+				//console.log("httpRequestHandler - yeeLightEffect=" + yeeLightEffect + " yeeLightDuration=" + yeeLightDuration)
 				var id = 1 + (Math.random() * 1e3) & 0xff;		
 				switch (comm) {
 					case "on":			
