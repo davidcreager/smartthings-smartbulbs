@@ -125,7 +125,7 @@ metadata {
 
 def installed() {
 	log.debug "installed()"
-	//configure()
+	configure()
 }
 
 def configure() {
@@ -287,11 +287,13 @@ private sendToParent(thisDevice,uri){
     	log.debug("sendToParent thisDevice is null")
     } else {
     	if (uri.indexOf("config")==-1) {
-            if (uri.indexOf("?")==-1){
-                uri = uri + "?transition=" + state.currentProperties.transition + "&transitionspeed=" + state.currentProperties.transitionspeed
-            } else {
-                uri = uri + "&transition=" + state.currentProperties.transition + "&transitionspeed=" + state.currentProperties.transitionspeed
-            }
+        	if ( (state?.currentProperties?.transition) && (state?.currentProperties?.transitionspeed) ) {
+                if (uri.indexOf("?")==-1){
+                    uri = uri + "?transition=" + state.currentProperties.transition + "&transitionspeed=" + state.currentProperties.transitionspeed
+                } else {
+                    uri = uri + "&transition=" + state.currentProperties.transition + "&transitionspeed=" + state.currentProperties.transitionspeed
+                }
+			}
         }
 		parent.doThis(thisDevice,uri)
    }

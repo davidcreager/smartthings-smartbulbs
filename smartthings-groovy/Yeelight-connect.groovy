@@ -1,7 +1,7 @@
 /**
  *  Yeelight
  *
- *  Copyright 2017 David Creager
+ *  Copyright 2017 WEI WEI
  *
  *  Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  *  in compliance with the License. You may obtain a copy of the License at:
@@ -203,8 +203,8 @@ private getDeviceID(number) {
 
 def installed() {
 	log.debug("installed: setting bridgeIP and port to blank, was " + state.bridgeIP + ":" + state.bridgePort )
-	state.bridgeIP=""
-	state.bridgePort=""
+	//state.bridgeIP=""
+	//state.bridgePort=""
 	initialize()
 }
 
