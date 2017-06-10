@@ -57,16 +57,22 @@ var configs={pos:"off", transition:"Sudden", dcolor:"Previous", custom:"", level
 server.listen(serverPort)
 function retProps(obj){
 	var props=""
-	for (var property in obj) {
-		if (obj.hasOwnProperty(property)) {
-			if (props=="") {
-				props=property+":"+obj[property]
-			} else {
-				props=props+","+property+":"+obj[property]
+	if (obj) {
+		for (var property in obj) {
+			if (obj.hasOwnProperty(property)) {
+				var prp=obj[property]
+				if (typeof(prp)=="object"){
+					prp="OBJECT"
+				} 
+				if (props=="") {
+					props=property+":"+prp
+				} else {
+					props=props+","+property+":"+prp
+				}
 			}
 		}
 	}
-return props
+	return props
 }
 function retPropNames(obj){
 	var props=""
@@ -96,14 +102,16 @@ function httpRequestHandler(req,resp) {
 		var devName,devMac,devIP,devID
 		var comm=""
 		if (req.url.includes("HubAction") || req.url.includes("HubVerify")  ) {
+			console.log("httpRequestHandler: received request url=" + req.url)
 			var url=URL.parse(req.url, true)
-			console.log("httpRequestHandler: received request url=" + req.url + " query=" + retProps(url.query))
+			
 			//console.log("httpRequestHandler  transition=" + url.query.transition + " transitionspeed=" + url.query.transitionspeed)
 			var posAfterHubAction=req.url.indexOf("/HubAction/")+11
 			var posAfterMac=req.url.indexOf("/",posAfterHubAction)+1
 			var posAfterCommand=req.url.indexOf("?",posAfterMac)
 			var yeeDevice
 			if (req.url.includes("HubAction")){
+				//console.log("httpRequestHandler: received request url=" + req.url + " query=" + retProps(url.query))
 				devMac = req.url.slice(posAfterHubAction,posAfterMac-1)
 				devName = smartMacs[devMac]
 				devID = smartMacs[devMac]
