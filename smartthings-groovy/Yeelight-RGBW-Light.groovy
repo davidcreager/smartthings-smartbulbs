@@ -28,15 +28,8 @@ metadata {
 		capability "Sensor"
         capability "Configuration"
         capability "Health Check"
-
-		//capability "Switch"  // from yeelight.light.colour
 		capability "Color Temperature"
-		capability "Switch Level"
-        capability "Actuator"
-		capability "Refresh"
-		capability "Sensor"
-		capability "Health Check"
-		//capability "Light" 
+
         
         
 		attribute "deviceID","string"
