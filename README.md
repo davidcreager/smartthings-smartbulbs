@@ -1,4 +1,5 @@
 # yeelight-smartthings
+MIPOW AND YEELIGHTS
 Provides a smartapp, device handler and node.js server to manage yeelight bulbs
 ## V0.0.1
 First release.    
