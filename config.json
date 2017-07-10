@@ -1,8 +1,0 @@
-{
-  "bridge": {
-    "port": 8082
-  },
-  "yeelight": {
-    "transition": 300
-  }
-}
