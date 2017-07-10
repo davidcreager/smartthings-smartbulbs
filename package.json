@@ -1,24 +1,24 @@
 {
-  "name": "yeelight-smarthings",
+  "name": "smartbulbs",
   "version": "1.0.0",
-  "description": "A server to act as intermediary between Smartthings and yeelights",
-  "main": "server.js",
+  "description": "A server to act as intermediary between Smartthings and yeelight and mipow lights",
+  "main": "smartserver.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "start": "node server.js"
+    "start": "node smartserver.js"
   },
   "keywords": [
     "smartthings",
-    "yeelight"
+    "yeelight",
+    "mipow"
   ],
   "author": "David Creager",
   "license": "ISC",
   "dependencies": {
+    "async": "^2.4.1",
     "color-convert": "^1.9.0",
     "ip": "^1.1.5",
-    "nconf": "^0.8.4",
-    "node-arp": "^1.0.5",
-    "node-getmac": "^1.0.1",
+    "noble": "^1.8.1",
     "node-ssdp": "^3.2.1",
     "uuid": "^3.0.1"
   }

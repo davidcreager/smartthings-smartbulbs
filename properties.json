@@ -1,0 +1,34 @@
+{
+	"ManagerPrefixes" : { "PB*" : "Playbulb", "XMCTD_" : "YeeBTLamp"},
+	"Playbulb" : {
+		"Properties" : ["battery_level","serial_number_string", "hardware_revision_string", "manufacturer_name_string", "software_revision_string" ]
+		, "Configs" : {"test":"test"}
+		, "Characteristics" : {"0xfffc":"colorUuid","0xfffb":"effectsUuid"}
+		, "AdvertismentPrefixTypes" : { "PB_Candle" : "CANDLE", "PB_Sphere" : "SPHERE" }
+		},
+	"Yeelight" : {
+		"Properties" : ["fw_ver","model"]
+		, "Configs" : {"pos": "off", "transition":"Sudden", "dcolor":"Previous", "custom" : "", "level" : 100, "transitionspeed" : 250, "autooff" : 0}
+		},
+	"YeeBTLamp" : {
+		"Properties" : ["fw_ver","model"]
+		, "Configs" : {"pos": "off", "transition":"Sudden", "dcolor":"Previous", "custom" : "", "level" : 100, "transitionspeed" : 250, "autooff" : 0}
+		, "Services" : {"0x8e2f0cbd1a664b53ace6b494e25f87bd" : "SERVICE_UUID"}
+		, "Characteristics" : {"0x8f65073d9f574aaaafea397d19d5bbeb" : "NOTIFY_CHARACT_UUID", "0xaa7d3f342d4f41e0807f52fbf8cf7443" : "COMMAND_CHARACT_UUID"}
+		, "AdvertismentPrefixTypes" : { "XMCTD_" : "YeeBT"}
+		, "Commands" : { "on" :	"434001"
+						, "off" : 	"434002"
+						, "status": "4344"
+						, "temperature" : "4343"
+						, "rgb" : "4341"
+						, "pair" : "436702"
+						, "name" : "4352"
+						, "disconnect" : "4368"
+						, "stats" : "438c"
+						}
+		, "statusReturn" : { "power" : {"values":{"01":"on","02":"off"}, "start":4, "end":6}
+							, "mode" : {"values":{"01":"rgb","02":"temperature","03":"flow"},"start":6,"end":8}
+							}
+		, "statusMode" : {}
+		}
+}

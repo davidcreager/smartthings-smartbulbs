@@ -8,13 +8,15 @@ var discMsg = new Buffer('M-SEARCH * HTTP/1.1\r\nMAN: \"ssdp:discover\"\r\nST: w
 function RGBToDec(r,g,b){return (r*65536)+(g*256)+b}
 function DecToRGB(rgb){return {r:((rgb>>16)&0x0ff),b:((rgb>>8)&0x0ff),g:((rgb)&0x0ff)}}
 YeeDevice = function (did, loc, model, power, bri,
-		      hue, sat, name, rgb,firmware,ct,supp, cb) {
+		      hue, sat, name, rgb, firmware,ct,supp, model, cb) {
     this.did = did;
+	this.uniqueName = did;
     this.host = loc.split(":")[0];
     this.port = parseInt(loc.split(":")[1], 10);
+	this.friendlyName = "Yeelight (" + this.host + ")"
     this.model = model;
     this.name = name;
-
+	this.smartType = "Yeelight";
     if (power == 'on')
 		this.power = 1;
     else
@@ -28,13 +30,15 @@ YeeDevice = function (did, loc, model, power, bri,
 	this.rgb = parseInt(rgb, 10);
     this.retry_tmr = null;
     this.retry_cnt = 0;
-	this.fw_ver=firmware
-	this.support=supp
+	this.fw_ver=firmware;
+	this.support=supp;
+	this.model = model;
     this.propChangeCb = cb;
     	
-    this.update = function(loc, power, bri, hue, sat, name,rgb,firmware,ct,supp) {
+    this.update = function(loc, power, bri, hue, sat, name,rgb,firmware,ct,supp,model) {
 		this.host = loc.split(":")[0];
 		this.port = parseInt(loc.split(":")[1], 10);
+		this.friendlyName = "Yeelight (" + this.host + ")"
 		if (power == 'on')
 			this.power = 1;
 		else
@@ -45,8 +49,9 @@ YeeDevice = function (did, loc, model, power, bri,
 		this.rgb = parseInt(rgb, 10);
 		this.ctx = parseInt(ct, 10);
 		this.name = name;
-		this.fw_ver=firmware
-		this.support=supp		
+		this.fw_ver=firmware;
+		this.support=supp;	
+		this.model = model || this.model;
 		}.bind(this);
 
     this.connect = function(callback) {
@@ -118,7 +123,7 @@ YeeDevice = function (did, loc, model, power, bri,
 	    that.connected = false;
 	    that.sock = null;
 	    that.connCallback(-1);
-	    that.retry_tmr = setTimeout(that.handleDiscon, 3000);	    
+	    that.retry_tmr = setTimeout(that.handleDiscon, 3000);	 	
 	});
 		 
 	this.sock.on("error", function() {
@@ -147,11 +152,8 @@ YeeDevice = function (did, loc, model, power, bri,
     }.bind(this);
 
     this.setBright = function(val,effect,duration,idn) {
-		var durationVal = parseInt(duration,10)
-        this.bright = val;
-		var req = {id:(idn)?idn:1, method:'set_bright',
-		   params:[val, (effect=="smooth"||effect=="sudden")?effect:"sudden",(durationVal && durationVal>30 && durationVal<2000) ? durationVal:500]};
-		this.sendCmd(req);
+		//this.set_bright = function (level,effect,duration,idn) {
+		this.set_bright(val, effect, duration, idn)
     }.bind(this);
 
     this.setColor = function (hue, sat,effect,duration,idn) {
@@ -214,8 +216,8 @@ YeeDevice = function (did, loc, model, power, bri,
     }.bind(this);
 };
 
-exports.YeeAgent = function(ip, handler){
-    this.ip = ip;
+exports.YeeAgent = function(handler){
+    this.ip = "0.0.0.0";
     this.discSock = dgram.createSocket('udp4');
     this.scanSock = dgram.createSocket('udp4');
     this.devices = {};
@@ -230,24 +232,17 @@ exports.YeeAgent = function(ip, handler){
 		delete this.devices[did];
 		}.bind(this);
     this.discSock.bind(PORT, function() {
-		console.log("add to multicast group");
+		//console.log("add to multicast group");
 		this.discSock.setBroadcast(true);
 		this.discSock.setMulticastTTL(128);
 		this.discSock.addMembership(MCAST_ADDR);
 		}.bind(this));
     this.discSock.on('listening', function() {
 		var address = this.discSock.address();
-		console.log('discSock.on listening Address= ' + address.address);
+		//console.log('discSock.on listening Address= ' + address.address);
 		}.bind(this));
 
     this.handleDiscoverMsg = function(message, from) {
-/*
-		console.log("handleDiscoverMsg: from IP=" + from.address + ":" + from.port + " message=" + message.toString())
-		console.log("handleDiscoverMsg from="+from)
-		Object.keys(from).forEach(function(key) {
-		console.log(from, from[key]);
-		});
-*/
 		var that = this;
 		did = "";
 		loc = "";
@@ -261,12 +256,18 @@ exports.YeeAgent = function(ip, handler){
 		rgb=""
 		ct=""
 		fw_ver=""
+		var msgMan;
+		var msgST;
 		headers = message.toString().split("\r\n");
 		//console.log("YeeAgent:handleDiscoverMsg: headers=" +headers)
 		for (i = 0; i < headers.length; i++) {
 			//console.log(headers[i])
 			if (headers[i].indexOf("id:") >= 0)
 				did = headers[i].slice(4);
+			if (headers[i].indexOf("MAN:") >= 0)
+				msgMan = headers[i].slice(5);
+			if (headers[i].indexOf("ST:") >= 0)
+				msgST = headers[i].slice(4);
 			if (headers[i].indexOf("Location:") >= 0)
 				loc = headers[i].slice(10);
 			if (headers[i].indexOf("power:") >= 0)
@@ -291,33 +292,40 @@ exports.YeeAgent = function(ip, handler){
 			if (headers[i].indexOf("name:") >= 0)
 				name = new Buffer(headers[i].slice(6), 'base64').toString('utf8');
 		}
-		if (did == "" || loc == "" || model == ""
-				|| power == "" || bright == "") {
-			console.log("no did or loc found!");
+		//console.log("yee:handleDiscoverMsg: received message ST=" + msgST + " MAN:=" + msgMan + " from=" + from.address + ":" + from.port)
+		if ( (did == "" || loc == "" || model == ""
+				|| power == "" || bright == "") ) {
+			if (msgMan.indexOf("ssdp:discover") == -1) {
+				console.log("yee:handleDiscoverMsg: error no did or loc! from=" + from.address + ":" + from.port)
+				throw "yee:handleDiscoverMsg: error no did or loc!"
+			}
 			return;	    
 		}
 		loc = loc.split("//")[1];
 		if (loc == "") {
-			console.log("handleDiscoverMsg: location format error!");
+			console.log("yee:handleDiscoverMsg: location format error! from=" + from.address + ":" + from.port);
+			throw "yee:handleDiscoverMsg: location format error!";
 			return;
 		}
 		if (did in this.devices) {
-			console.log("handleDiscoverMsg: already in device list!");
+			//console.log("yee:handleDiscoverMsg: already in device list! " + this.devices[did].friendlyName + " " + from.address + ":" + from.port);
 			this.devices[did].update(
 				loc,power,bright,hue,
-				sat,name,rgb,fw_ver,ct,support);
+				sat,name,rgb,fw_ver,ct,support, model);
 		} else {
-			console.log("handleDiscoverMsg: Creating yeeDevice loc="+loc+" name="+name)
+			//console.log("yee:handleDiscoverMsg: Creating yeeDevice loc=" + loc+" name=" + name + " did=" + did);
 			this.devices[did] = new YeeDevice(did,
 							  loc,
 							  model,
 							  power,
 							  bright,
 							  hue,
-							  sat, name, rgb,fw_ver,ct,support,
+							  sat, name, rgb,fw_ver,ct,support, model,
 							  this.devPropChange 
 							 );
-			this.handler.onDevFound(this.devices[did]);
+							 //pbBulb, type, name, uniqueName, pb
+			//console.log("yee:handleDiscoverMsg: did=" + did + " type=" + "Yeelight" + " name=" + name + " devices.did.did=" + this.devices[did].did);
+			this.handler.onDevFound(this.devices[did], "Yeelight", this.devices[did].friendlyName, did);
 		}
 
 
@@ -326,11 +334,11 @@ exports.YeeAgent = function(ip, handler){
 			var dev = this.devices[did];
 			dev.connect(function(ret){
 					if (ret < 0) {
-						console.log("failed to connect!");
+						console.log("yee:handleDiscoverMsg: " + dev.friendlyName + "failed to connect!");
 						that.handler.onDevDisconnected(dev);		    
 					} else 
 					{
-						console.log("connect ok!");
+						//console.log("yee:handleDiscoverMsg: " + dev.friendlyName + " connected ok!");
 						that.handler.onDevConnected(dev);		    
 					}
 				}
