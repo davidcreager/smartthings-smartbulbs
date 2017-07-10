@@ -1,4 +1,5 @@
-var COLORS=require("color-convert")
+'use strict';
+var G_charTable = require("./characteristics.json")
 function bytesToHex (bytes) {
 	if (bytes) {
         for (var hex = [], i = 0; i < bytes.length; i++) {
@@ -159,10 +160,8 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler) {
 		}
     }.bind(this);
 	this.processCharacteristic = function(characteristic) {
-		var charTable = require("./characteristics.json")
 		var miPowCharTable = require("./properties.json").YeeBTLamp.Characteristics
-		
-		var lookedUpName = charTable["0x" + characteristic.uuid.toLowerCase() ];
+		var lookedUpName = G_charTable["0x" + characteristic.uuid.toLowerCase() ];
 		var chrType = ""
 		var mipow = false;
 		if (!lookedUpName) {
@@ -170,7 +169,7 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler) {
 			chrType="hex";
 			mipow=true;
 		}
-		//console.log("BluetoothManager:DEBUG " + this.periph.advertisement.localName + " service uuid=" + characteristic._serviceUuid + " char uuid=" + characteristic.uuid +
+		//console.log("BluetoothAgent:DEBUG " + this.periph.advertisement.localName + " service uuid=" + characteristic._serviceUuid + " char uuid=" + characteristic.uuid +
 							//" type=" + characteristic.type + " name=" + characteristic.name + " looked up=" + lookedUpName)
 		//					" type=" + characteristic.type + " props=" + characteristic.properties + " looked up=" + lookedUpName)
 		if (lookedUpName) {

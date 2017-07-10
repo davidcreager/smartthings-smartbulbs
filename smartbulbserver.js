@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 'use strict';
-var yeeLight = require('./yee.js');
+//var yeeLight = require('./YeeWifiLamp.js');
 var COLORS=require("color-convert")
 var noble = require('noble');
 var http = require('http');
@@ -9,9 +9,10 @@ var ip=require("ip")
 var UUID = require('uuid/v1')
 var async=require("async")
 var SSDP = require('node-ssdp').Server
-var NCONF=require('nconf');
+//var NCONF=require('nconf');
 const querystring = require('querystring');
 var properties = require("./properties.json")
+/*
 NCONF.argv()
 	.env()
 	.file({ file: './config.json' });
@@ -22,7 +23,7 @@ process.argv.forEach((val, index) => {
  
 });
 console.log("smartserver: input arguments are " + tmp)
-
+*/
 
 var devicePortCounter = 8201
 var smartSSDs = {};
@@ -42,40 +43,56 @@ var eventCounter=1;
 var commandSeq = 1 + (Math.random() * 1e3) & 0xff;
 
 
+//const G_serverPort=NCONF.get("smartserver").port;
+const G_serverPort = properties.ServerPort
+var devicePortCounter = properties.DevicePortStart
 
-
-const gServerPort=NCONF.get("smartserver").port;
-
-var	smartBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn:"SmartBridge", suppressRootDeviceAdvertisements:true,
-					location:"http://"+ ip.address() + ":" + gServerPort + '/bridge'})
-	smartBridgeSSDP.addUSN('urn:schemas-upnp-org:device:SmartBridge:1')
+var	smartBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn:"SmartbulbBridge", suppressRootDeviceAdvertisements:true,
+					location:"http://"+ ip.address() + ":" + G_serverPort + '/bridge'})
+	smartBridgeSSDP.addUSN('urn:schemas-upnp-org:device:SmartbulbBridge:1')
 	smartBridgeSSDP.start()
 	
 var server = http.createServer(httpRequestHandler)
-server.listen(gServerPort)
-servers[gServerPort]=server
+server.listen(G_serverPort)
+servers[G_serverPort]=server
 
 
 //console.log(JSON.stringify(properties))
 
-if (NCONF.get("bridge").workFor.Yeelight) {
-	console.log("smartserver: Working for Yeelights workFor=" + JSON.stringify(NCONF.get("bridge").workFor) + " Yeelight=" + JSON.stringify(NCONF.get("bridge").workFor.Yeelight) )
-	yeelightAgent = new yeeLight.YeeAgent(handleAgentEvents)
-	yeelightAgent.startDisc()
-} else {
-	console.log("smartserver: NOT Working for Yeelights workFor=" + JSON.stringify(NCONF.get("bridge").workFor) + " Yeelight=" + JSON.stringify(NCONF.get("bridge").workFor.Yeelight) )
-}
-if (NCONF.get("bridge").workFor.Playbulb) {
-	console.log("smartserver: Working for Playbulbs workFor=" + JSON.stringify(NCONF.get("bridge").workFor) + " Playbulb=" + JSON.stringify(NCONF.get("bridge").workFor.Playbulb) )
-	//playbulbAgent = new Playbulb.BluetoothManager(handleAgentEvents);
-	playbulbAgent = new require("./bluetoothManager").BluetoothManager(handleAgentEvents);
-	playbulbAgent.discoverDevices.call(playbulbAgent)
-} else {
-	console.log("smartserver: NOT Working for Playbulbs workFor=" + JSON.stringify(NCONF.get("bridge").workFor) + " Yeelight=" + JSON.stringify(NCONF.get("bridge").workFor.Yeelight) )
-}
+//if (NCONF.get("bridge").workFor.Yeelight) {
+var G_agents = {}
+(function() {
+	var tmp;
+	var tmpTypeDetails;
+	for (type in properties.bridgeEnabledTypes) {
+		tmpTypeDetails = properties.bridgeEnabledTypes[type];
+		console.log("smartServer: " + (tmpTypeDetails.enabled ? "working for " : "NOT working for") + type  + " agent is " + tmpTypeDetails.agent)
+		if (tmpTypeDetails.enabled) {
+			if (G_agents[type]) {
+				console.log("smartServer: " + "Working for " + type  + " agent is " + tmpTypeDetails.agent + " already running")
+			} else {
+				if (tmpTypeDetails.agent == "YeeAgent") {
+					console.log("smartServer: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent)
+					G_agents[type] = new require("./YeeWifiAgent").YeeAgent(handleAgentEvents);
+					G_agents[type].discoverDevices();
+				} else if  (tmpTypeDetails.agent == "BluetoothAgent")  {
+					console.log("smartServer: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent)
+					G_agents[type] = new require("./BluetoothAgent").BluetoothAgent(handleAgentEvents);
+					G_agents[type].discoverDevices();
+					//playbulbAgent.discoverDevices.call(playbulbAgent)
+				} else {
+					console.log("smartServer: " + " Unsupported agent NOT working for " + type  + " agent is " + tmpTypeDetails.agent)
+				}
+			}
+		} else {
+			console.log("smartServer: " + "NOT working for " + type  + " agent is " + tmpTypeDetails.agent)
+		}
+	}
+})();
+
 
 console.log("smartserver: SmartBridge Bridge - Starting SSDP Annoucements for Bridge Device (SmartBridge) IP:PORT=" 
-		+ ip.address() + ":" + gServerPort )
+		+ ip.address() + ":" + G_serverPort )
 
 handleAgentEvents.BTNotify = function(device,command,value) {
 	console.log("Notify received for " + device.friendlyName + " command=" + command + " value=" + value);
@@ -207,7 +224,7 @@ function httpRequestHandler(req,resp) {
 	if (url.pathname == "/bridge") {
 		resp.writeHead(200, {"Content-Type": "text/xml"});
 		//resp, ssdpDeviceType, friendlyName, uniqueName, IP, port, modelInfo
-		writeDeviceDescriptionResponse(resp, "SmartBridge", "SmartBridge", ip.address() , gServerPort,  {} );
+		writeDeviceDescriptionResponse(resp, "SmartBridge", "SmartBridge", ip.address() , G_serverPort,  {} );
 		resp.end();
 		//console.log("smartserver:httpRequestHandler: Responded to /bridge devName=" + "PlayBridge-Pi" + " # devices=" + playbulbAgent.btDevices.length)
 	} else {

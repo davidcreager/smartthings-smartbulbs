@@ -1,4 +1,11 @@
 {
+	"bridgeEnabledTypes" : {
+							"YeeBTLamp" : {enabled:true,agent:"BluetoothAgent"}
+							."YeeWifiLamp" : {enabled:true,agent:"YeeAgent"}
+							,"Playbulb" : {enabled:true,agent:"BluetoothAgent"}
+							}
+	"ServerPort" : 8082,
+	"DevicePortStart" : 8201,
 	"ManagerPrefixes" : { "PB*" : "Playbulb", "XMCTD_" : "YeeBTLamp"},
 	"Playbulb" : {
 		"Properties" : ["battery_level","serial_number_string", "hardware_revision_string", "manufacturer_name_string", "software_revision_string" ]
