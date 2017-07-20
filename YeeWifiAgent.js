@@ -1,9 +1,11 @@
 'use strict';
 var dgram = require('dgram');
+var YeeWifiLamp = require("./YeeWifiLamp.js")
 var PORT = 1982;
 var MCAST_ADDR = '239.255.255.250';
 var G_discMsg = new Buffer('M-SEARCH * HTTP/1.1\r\nMAN: \"ssdp:discover\"\r\nST: wifi_bulb\r\n');
 exports.YeeAgent = function(handler){
+	//console.log("DEBUG Creating Yeeagent");
     this.ip = "0.0.0.0";
     this.discSock = dgram.createSocket('udp4');
     this.scanSock = dgram.createSocket('udp4');
@@ -31,22 +33,23 @@ exports.YeeAgent = function(handler){
 
     this.handleDiscoverMsg = function(message, from) {
 		var that = this;
-		did = "";
-		loc = "";
-		power = "";
-		bright = "";
-		model = "";
-		hue = "";
-		sat = "";
-		name = "";
-		support=[];
-		rgb=""
-		ct=""
-		fw_ver=""
+		var did = "";
+		var loc = "";
+		var power = "";
+		var bright = "";
+		var model = "";
+		var hue = "";
+		var sat = "";
+		var name = "";
+		var support=[];
+		var rgb=""
+		var ct=""
+		var fw_ver=""
 		var msgMan;
 		var msgST;
-		headers = message.toString().split("\r\n");
+		var headers = message.toString().split("\r\n");
 		//console.log("YeeAgent:handleDiscoverMsg: headers=" +headers)
+		var i;
 		for (i = 0; i < headers.length; i++) {
 			//console.log(headers[i])
 			if (headers[i].indexOf("id:") >= 0)
@@ -79,40 +82,40 @@ exports.YeeAgent = function(handler){
 			if (headers[i].indexOf("name:") >= 0)
 				name = new Buffer(headers[i].slice(6), 'base64').toString('utf8');
 		}
-		//console.log("yee:handleDiscoverMsg: received message ST=" + msgST + " MAN:=" + msgMan + " from=" + from.address + ":" + from.port)
+		//console.log("YeeWifiAgent:handleDiscoverMsg: received message ST=" + msgST + " MAN:=" + msgMan + " from=" + from.address + ":" + from.port)
 		if ( (did == "" || loc == "" || model == ""
 				|| power == "" || bright == "") ) {
 			if (msgMan.indexOf("ssdp:discover") == -1) {
-				console.log("yee:handleDiscoverMsg: error no did or loc! from=" + from.address + ":" + from.port)
-				throw "yee:handleDiscoverMsg: error no did or loc!"
+				console.log("YeeWifiAgent:handleDiscoverMsg: error no did or loc! from=" + from.address + ":" + from.port)
+				throw "YeeWifiAgent:handleDiscoverMsg: error no did or loc!"
 			}
 			return;	    
 		}
 		loc = loc.split("//")[1];
 		if (loc == "") {
-			console.log("yee:handleDiscoverMsg: location format error! from=" + from.address + ":" + from.port);
-			throw "yee:handleDiscoverMsg: location format error!";
+			console.log("YeeWifiAgent:handleDiscoverMsg: location format error! from=" + from.address + ":" + from.port);
+			throw "YeeWifiAgent:handleDiscoverMsg: location format error!";
 			return;
 		}
 		if (did in this.devices) {
-			//console.log("yee:handleDiscoverMsg: already in device list! " + this.devices[did].friendlyName + " " + from.address + ":" + from.port);
+			//console.log("YeeWifiAgent:handleDiscoverMsg: already in device list! " + this.devices[did].friendlyName + " " + from.address + ":" + from.port);
 			this.devices[did].update(
 				loc,power,bright,hue,
 				sat,name,rgb,fw_ver,ct,support, model);
 		} else {
-			//console.log("yee:handleDiscoverMsg: Creating yeeDevice loc=" + loc+" name=" + name + " did=" + did);
-			this.devices[did] = new YeeDevice(did,
+			//console.log("YeeWifiAgent:handleDiscoverMsg: Creating yeeDevice loc=" + loc+" name=" + name + " did=" + did);
+			this.devices[did] = new YeeWifiLamp.YeeDevice(did,
 							  loc,
 							  model,
 							  power,
 							  bright,
 							  hue,
-							  sat, name, rgb,fw_ver,ct,support, model,
-							  this.devPropChange 
+							  sat, name, rgb,fw_ver,ct,support,
+							  this.devPropChange , this
 							 );
 							 //pbBulb, type, name, uniqueName, pb
-			//console.log("yee:handleDiscoverMsg: did=" + did + " type=" + "Yeelight" + " name=" + name + " devices.did.did=" + this.devices[did].did);
-			this.handler.onDevFound(this.devices[did], "Yeelight", this.devices[did].friendlyName, did);
+			//console.log("YeeWifiAgent:handleDiscoverMsg: did=" + did + " type=" + "YeeWifiLamp" + " name=" + name + " devices.did.did=" + this.devices[did].did);
+			this.handler.onDevFound(this.devices[did], "YeeWifiLamp", this.devices[did].friendlyName, did, this);
 		}
 
 
@@ -121,11 +124,11 @@ exports.YeeAgent = function(handler){
 			var dev = this.devices[did];
 			dev.connect(function(ret){
 					if (ret < 0) {
-						console.log("yee:handleDiscoverMsg: " + dev.friendlyName + "failed to connect!");
+						console.log("YeeWifiAgent:handleDiscoverMsg: " + dev.friendlyName + "failed to connect!");
 						that.handler.onDevDisconnected(dev);		    
 					} else 
 					{
-						//console.log("yee:handleDiscoverMsg: " + dev.friendlyName + " connected ok!");
+						//console.log("YeeWifiAgent:handleDiscoverMsg: " + dev.friendlyName + " connected ok!");
 						that.handler.onDevConnected(dev);		    
 					}
 				}
@@ -139,11 +142,12 @@ exports.YeeAgent = function(handler){
     this.scanSock.on('message', this.handleDiscoverMsg);
     this.discSock.on('message', this.handleDiscoverMsg);
 	this.discoverDevices = function() {
-		console.log("Starting Discovery Port="+PORT+" MCAST_ADDR="+MCAST_ADDR+" leng=" + G_discMsg.length)
+		console.log("YeeWifiAgent:discoverDevices:Starting Discovery Port="+PORT+" MCAST_ADDR="+MCAST_ADDR+" leng=" + G_discMsg.length)
 		this.scanSock.send(G_discMsg,
 			   0,
 			   G_discMsg.length,
 			   PORT,
 			   MCAST_ADDR);
       }.bind(this);
+	  return this;
 };

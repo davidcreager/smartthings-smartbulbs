@@ -10,24 +10,6 @@ function bytesToHex (bytes) {
 	}
 };
 /*
-var types = {
-    SPHERE: {
-        modes: {
-            FLASH: 0,
-            PULSE: 1,
-            RAINBOWJUMP: 2,
-            RAINBOWFADE: 3
-        }
-    },
-    CANDLE: {
-        modes: {
-            FADE: 0,
-            JUMPRGB: 1,
-            FADERGB: 2,
-            FLICKER: 3
-        }
-     },
-};
 •Disconnect:  4368 
 •Read color flow:  434c %02lx 
 •Delete color flow:  4373 %02lx 
@@ -35,18 +17,18 @@ var types = {
 •Get statistics Data:  438c 
 •Set delay to off:  437f01%02x  Will add more soon...
 
-
-
 */
-exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler) {
+exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent) {
     YeeBTLampName = YeeBTLampName || "YeeBTLamp";
 	//console.log("YeeBTLamp: type=" + type + " colorUuid=" + " types[type].colorUuid=" + types[type].colorUuid)
 	//abyss 
 	var that = this;
 	this.type = pbType || "Unknown";
 	this.smartType = "YeeBTLamp";
+	this.agent = agent;
 	this.cbHandler = handler;
 	this.YeeBTLampName = YeeBTLampName;
+	this.deviceHandler = "Yeelight RGBW Light";
 	this.friendlyName = this.YeeBTLampName
 	this.uniqueName=YeeBTLampName + "(" + peripheral.uuid.toUpperCase() + ")"
 	this.characteristicsByName = {};
@@ -63,17 +45,17 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler) {
 	this.allReady = false;
     this.waiting = [];
     this.modes = { FLASH: 0, PULSE: 1, RAINBOWJUMP: 2, RAINBOWFADE: 3}
-	this.alpha = 0;
-	this.red = 0;
-	this.green = 0;
-	this.blue = 0;
+	this.alpha = 255;
+	this.red = 255;
+	this.green = 255;
+	this.blue = 255;
 	this.retry_cnt = 0;
 	this.paired = null;
 	this.keepAliveTimer = null;
 
 	this.periph.on("disconnect", function(){
-		console.log("disconnected " + peripheral.advertisement.localName);
-		that.reconnect();
+		console.log("YeeBTLamp:disconnected " + peripheral.advertisement.localName);
+		that.cbHandler.BTDisconnect(that.periph,that);
 	}.bind(this));
 	this.sendBlueToothCommand = function(array) {
 		//const bfr = Buffer.from(array);
@@ -96,7 +78,7 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler) {
 						console.log("YeeBTLamp:sendBlueToothCommand: write error " + error + " " + that.friendlyName);
 						return;
 					} else {
-						console.log("YeeBTLamp:sendBlueToothCommand: Write success")
+						//console.log("YeeBTLamp:sendBlueToothCommand: Write success")
 					}
 				  });
 			} else {
@@ -107,22 +89,47 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler) {
 	}.bind(this);
 	this.handleNotification = function(data, isNotify) {
 		var tmp;
-        if (data[0] == 0x43 && data[1] == 0x45) { 
+        if (data[0] == 0x43 && data[1] == 0x45) {
             if (data[2] == 1) {
                 this.cbHandler.BTNotify(this, 'power', 1); 
 				tmp = "Power 1";
             } else {
                 this.cbHandler.BTNotify(this, 'power', 0);
-				tmp = "Power 1";
+				tmp = "Power 0";
+			}
+			var mode = "";
+			if (data[3] == 0x01) {			
+				mode = "RGB";
+			} else if (data[3] == 0x02) {
+				mode = "White";
+			} else if (data[3] == 0x03) {
+				mode = "Flow";
+			} else {
+				mode = "Unknown";
 			}
             this.cbHandler.BTNotify(this, 'bright', data[8]);
 			tmp = tmp + "," + " Bright" + data[8];
-			console.log("YeeBTLamp:handleNotification: receive notify Data for device: " + this.friendlyName + " command=" + tmp + " D[0]=" + data[0] + 
-									" D[1]=" + data[1] + " D[2]=" + data[2] + " D[8]=" + data[8]);
+			console.log("YeeBTLamp:handleNotification: receive notify Data for device: " + this.friendlyName + 
+									" command=" + tmp + " mode=" + mode +
+									" D[0]=" + data[0] + " D[1]=" + data[1] + " D[2]=" + data[2] + " D[3]=" + data[3] + " D[8]=" + data[8]);
         } else if (data[0] == 0x43 && data[1] == 0x63) {
-			this.paired = "Paired";
-			this.sendBlueToothCommand([0x43,0x52]);
-			console.log("YeeBTLamp:handleNotification:" + this.friendlyName + " paired!" + " D[2]=" + data[2] + " D[3]=" + data[3])
+			var statusMessage;
+			if (data[2]== 0x01) {
+				statusMessage = "Unauthorised/Not Paired"
+				this.paired = "Failed";
+			} else if (data[2]== 0x02) {
+				statusMessage = "Authorised/Paired"
+				this.paired = "Paired";
+				this.sendBlueToothCommand([0x43,0x52]); //get name
+			} else if (data[2]== 0x04) {
+				statusMessage = "Authorised Device (UDID)"
+			} else if (data[2]== 0x07) {
+				statusMessage = "Imminent disconnect!!!"
+			} else {
+				statusMessage = "Unknown status response=" + data[2];
+				
+			}
+			console.log("YeeBTLamp:handleNotification:" + this.friendlyName + " status " + statusMessage + " D[2]=" + data[2] + " D[3]=" + data[3])
 		} else if (data[0] == 0x43 && data[1] == 0x53) {
 			var i=0;
 			var notEmpty = false
@@ -141,6 +148,7 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler) {
 										" Sent Name =" + tmpName + " len=" + tmpName.length + " hex=" + tmpName.toString("hex"));
 			} else {
 				console.log("YeeBTLamp:handleNotification: Name of device received but not set")
+				console.log("YeeBTLamp:handleNotification:DEBUG tmpName=" + tmpName + " notEmpty=" + notEmpty);
 			}
 			var chr;
 			var tmpReady = true;
@@ -149,6 +157,7 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler) {
 					tmpReady=false;
 				}
 			};
+			if (this.paired!="Paired") {tmpReady=false;};
 			if ( (tmpReady) && (!this.yesReady) ) {
 				//console.log("Calling isReady for " + this.uniqueName)
 				this.isReady(null);
@@ -169,9 +178,9 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler) {
 			chrType="hex";
 			mipow=true;
 		}
-		//console.log("BluetoothAgent:DEBUG " + this.periph.advertisement.localName + " service uuid=" + characteristic._serviceUuid + " char uuid=" + characteristic.uuid +
+		console.log("BluetoothAgent:DEBUG " + this.periph.advertisement.localName + " service uuid=" + characteristic._serviceUuid + " char uuid=" + characteristic.uuid +
 							//" type=" + characteristic.type + " name=" + characteristic.name + " looked up=" + lookedUpName)
-		//					" type=" + characteristic.type + " props=" + characteristic.properties + " looked up=" + lookedUpName)
+							" type=" + characteristic.type + " props=" + characteristic.properties + " looked up=" + lookedUpName)
 		if (lookedUpName) {
 			//console.log("processing characteristic pbulb=" + this.uniqueName + " " + lookedUpName + " properties=" + characteristic.properties)
 			chrType = (lookedUpName.indexOf("battery") != -1) ? "uint8" : chrType
@@ -191,7 +200,7 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler) {
 					//console.log("DEBUG: received notify event for " + this.friendlyName + " data=" + data.toString("hex") + " isNotify=" + isNotify)
 				}.bind(this));
 				this.characteristicsByName[lookedUpName].subscribe( function(error,data) {
-					 console.log("YeeBTLamp:processCharacteristic: ble notification on Pairing" + " error=" + error + " data=" + data);
+					 console.log("YeeBTLamp:processCharacteristic: ble in return from subscribe - now Pairing" + " error=" + error + " data=" + data);
 					 that.paired = "Pairing"
 					 that.sendBlueToothCommand([0x43,0x67,0xde,0xad,0xbe,0xbf])					 
 					 // 43 67 for auth
@@ -228,35 +237,9 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler) {
 			//console.log("processCharacteristic looked up Name not found " + "0x" + characteristic.uuid )
 		}
 	}.bind(this);
-	this.reconnect = function () {
-		//HACK for abyss
-		throw "This is screwed"
-		return
-		console.log("retry connect (" + that.retry_cnt + ") ...: " + that.periph.advertisement.localName);	
-		that.retry_cnt = that.retry_cnt + 1;
-		if (that.retry_cnt > 9) return;
-		that.connect( function(error,retval){
-						if (error) {
-							console.log("reconnecting error " + error + " " + that.friendlyName);
-							setTimeout(that.reconnect,2000);
-						} else {
-							console.log("reconnecting ok " + that.periph.advertisement.localName + " state=" + that.periph.state);
-							that.periph.discoverAllServicesAndCharacteristics();
-							that.periph.on('servicesDiscover', function (services) {
-								//console.log("YeeBTLamp: " + btBulb.periph.advertisement.localName + " uuid=" + btBulb.periph.uuid + " Services Discovered")
-								services.map(function (service) {
-									service.on('characteristicsDiscover', function (characteristics) {
-										characteristics.map(function (characteristic) {
-											that.processCharacteristic(characteristic);
-										});
-									});
-								});
-							});
-						}
-		});
-	}
+
 	this.connect = function (cb) {
-		console.log("YeeBTLamp:connect: Connecting " + this.periph.advertisement.localName + " state=" + this.periph.state + " pair=" + this.paired)
+		//console.log("YeeBTLamp:connect: Connecting " + this.periph.advertisement.localName + " state=" + this.periph.state + " pair=" + this.paired)
 		if (this.periph) {
 			if (this.periph.state === "connected")  {
 				cb(null,"connected")
@@ -320,9 +303,9 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler) {
 					waiter = this.waiting.pop(0);
 					setTimeout(waiter, 0); // run each waiter async
 				}
-				if (!this.keepAliveTimer) {
+				/*if (!this.keepAliveTimer) {
 					this.keepAliveTimer = setTimeout(this.keepAlive,20000);
-				}
+				}*/
 			}
 		}
 	}.bind(this);
@@ -382,6 +365,10 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler) {
 	this.setBright = function (val) {
 		this.sendBlueToothCommand([0x43,0x42,parseInt(val.toString(16), 16)]);
 	}.bind(this);
+	this.setCTX = function(val) {
+		var rgb = CTXtoRGB(val);
+		this.setRGB(rgb.red,rgb.green,rgb.blue);
+	}.bind(this);
 	this.updateColorChar = function(a,r,g,b) {
 		this.sendBlueToothCommand([0x43,0x41,parseInt(r.toString(16), 16),parseInt(g.toString(16), 16),parseInt(b.toString(16), 16),0xFF,0x65]);
 	}.bind(this);
@@ -401,7 +388,42 @@ function nonBlockingWaitForCondition(condFunc,callback) {
 	};
 	checkFunc();
 };
-
+function CTXtoRGB(kelvin) {
+	var tmpKelvin = kelvin/100;
+	var rgb={}
+	if (tmpKelvin <= 66) {
+		rgb.red = 255
+	} else {
+		rgb.red = tmpKelvin - 60;
+		rgb.red = 329.698727446 * Math.pow(rgb.red , -0.1332047592);
+		if (rgb.red < 0) {rgb.red = 0;}
+		if (rgb.red > 255) {rgb.red = 255;}
+	}
+	if (tmpKelvin <= 66) {
+		rgb.green = tmpKelvin;
+		rgb.green = 99.4708025861 * Math.log(rgb.green) - 161.1195681661;
+		if (rgb.green < 0) {rgb.green = 0;}
+		if (rgb.green > 255) {rgb.green = 255;}
+	} else {
+		rgb.green = tmpKelvin - 60;
+		rgb.green = 288.1221695283  * Math.pow(rgb.green , -0.0755148492);
+		if (rgb.green < 0) {rgb.green = 0;}
+		if (rgb.green > 255) {rgb.green = 255;}
+	}
+	if (tmpKelvin >= 66) {
+		rgb.blue = 255
+	} else {
+		if (tmpKelvin <=19) {
+			rgb.blue = 0
+		} else {
+			rgb.blue = tmpKelvin - 10
+			rgb.blue = 138.5177312231   * Math.log(rgb.blue) - 305.0447927307;
+			if (rgb.blue < 0) {rgb.blue = 0;}
+			if (rgb.blue > 255) {rgb.blue = 255;}
+		}
+	}
+	return rgb;
+}
 
 			/*
 			if (that.characteristicsByName["COMMAND_CHARACT_UUID"]) {

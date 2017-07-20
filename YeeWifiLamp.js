@@ -3,16 +3,19 @@ var net = require("net");
 //function RGBToDec(r,g,b){((r&0x0ff)<<16)|((g&0x0ff)<<8)|(b&0x0ff)}
 function RGBToDec(r,g,b){return (r*65536)+(g*256)+b}
 function DecToRGB(rgb){return {r:((rgb>>16)&0x0ff),b:((rgb>>8)&0x0ff),g:((rgb)&0x0ff)}}
-YeeDevice = function (did, loc, model, power, bri,
-		      hue, sat, name, rgb, firmware,ct,supp, model, cb) {
+exports.YeeDevice = function (did, loc, model, power, bri,
+		      hue, sat, name, rgb, firmware, ct, supp, cb, agent) {
     this.did = did;
 	this.uniqueName = did;
     this.host = loc.split(":")[0];
     this.port = parseInt(loc.split(":")[1], 10);
-	this.friendlyName = "Yeelight (" + this.host + ")"
+	this.friendlyName = "YeeWifiLamp (" + this.host + ")"
     this.model = model;
+	this.agent = agent;
     this.name = name;
-	this.smartType = "Yeelight";
+	this.smartType = "YeeWifiLamp";
+	this.deviceHandler = "Yeelight RGBW Light";
+	this.type = "Yeelight";
     if (power == 'on')
 		this.power = 1;
     else
@@ -34,7 +37,7 @@ YeeDevice = function (did, loc, model, power, bri,
     this.update = function(loc, power, bri, hue, sat, name,rgb,firmware,ct,supp,model) {
 		this.host = loc.split(":")[0];
 		this.port = parseInt(loc.split(":")[1], 10);
-		this.friendlyName = "Yeelight (" + this.host + ")"
+		this.friendlyName = "YeeWifiLamp (" + this.host + ")"
 		if (power == 'on')
 			this.power = 1;
 		else
@@ -188,7 +191,7 @@ YeeDevice = function (did, loc, model, power, bri,
 			params:[this.bright,(effect=="smooth"||effect=="sudden")?effect:"sudden",(durationVal && durationVal>30 && durationVal<2000)?durationVal:500]}
 		this.sendCmd(req);
     }.bind(this);
-    this.set_ctx = function (level,effect,duration,idn) {
+    this.setctx = function (level,effect,duration,idn) {
 		var durationVal = parseInt(duration,10)
 		this.ctx = parseInt(level,10)
 		console.log("setCTX ctx="+level)

@@ -1,19 +1,19 @@
 {
 	"bridgeEnabledTypes" : {
-							"YeeBTLamp" : {enabled:true,agent:"BluetoothAgent"}
-							."YeeWifiLamp" : {enabled:true,agent:"YeeAgent"}
-							,"Playbulb" : {enabled:true,agent:"BluetoothAgent"}
-							}
-	"ServerPort" : 8082,
+							"YeeBTLamp" : {"enabled" : false, "agent" : "BluetoothAgent"}
+							,"YeeWifiLamp" : {"enabled" : true, "agent" : "YeeAgent"}
+							,"Playbulb" : {"enabled" : false, "agent" : "BluetoothAgent"}
+							},
+	"ServerPort" : 8083,
 	"DevicePortStart" : 8201,
-	"ManagerPrefixes" : { "PB*" : "Playbulb", "XMCTD_" : "YeeBTLamp"},
+	"ManagerPrefixes" : { "PB_" : "Playbulb", "XMCTD_" : "YeeBTLamp"},
 	"Playbulb" : {
 		"Properties" : ["battery_level","serial_number_string", "hardware_revision_string", "manufacturer_name_string", "software_revision_string" ]
 		, "Configs" : {"test":"test"}
 		, "Characteristics" : {"0xfffc":"colorUuid","0xfffb":"effectsUuid"}
 		, "AdvertismentPrefixTypes" : { "PB_Candle" : "CANDLE", "PB_Sphere" : "SPHERE" }
 		},
-	"Yeelight" : {
+	"YeeWifiLamp" : {
 		"Properties" : ["fw_ver","model"]
 		, "Configs" : {"pos": "off", "transition":"Sudden", "dcolor":"Previous", "custom" : "", "level" : 100, "transitionspeed" : 250, "autooff" : 0}
 		},
@@ -22,7 +22,7 @@
 		, "Configs" : {"pos": "off", "transition":"Sudden", "dcolor":"Previous", "custom" : "", "level" : 100, "transitionspeed" : 250, "autooff" : 0}
 		, "Services" : {"0x8e2f0cbd1a664b53ace6b494e25f87bd" : "SERVICE_UUID"}
 		, "Characteristics" : {"0x8f65073d9f574aaaafea397d19d5bbeb" : "NOTIFY_CHARACT_UUID", "0xaa7d3f342d4f41e0807f52fbf8cf7443" : "COMMAND_CHARACT_UUID"}
-		, "AdvertismentPrefixTypes" : { "XMCTD_" : "YeeBT"}
+		, "AdvertismentPrefixTypes" : { "XMCTD_" : "Bedside Lamp"}
 		, "Commands" : { "on" :	"434001"
 						, "off" : 	"434002"
 						, "status": "4344"

@@ -28,13 +28,17 @@ var types = {
      },
 };
 */
-exports.Playbulb = function ( playbulbName, pbType, peripheral, handler) {
+exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent) {
     playbulbName = playbulbName || "Playbulb";
 	//console.log("BluetoothManager: type=" + type + " colorUuid=" + " types[type].colorUuid=" + types[type].colorUuid)
 	//abyss 
 	var that = this;
 	this.type = pbType || "Unknown";
+	this.agent = agent;
 	this.smartType = "Playbulb";
+	
+	
+	this.deviceHandler = "Playbulb RGBW Light";
 	this.cbHandler = handler;
 	this.playbulbName = playbulbName;
 	this.friendlyName = this.playbulbName;
@@ -52,10 +56,11 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler) {
 	this.allReady = false;
     this.waiting = [];
     this.modes = { FLASH: 0, PULSE: 1, RAINBOWJUMP: 2, RAINBOWFADE: 3}
-	this.alpha = 0;
-	this.red = 0;
-	this.green = 0;
-	this.blue = 0;
+	this.saturation = 0;
+	this.brightness = 0;
+	this.red = 255;
+	this.green = 255;
+	this.blue = 255;
 	this.retry_cnt = 0;
 	this.periph.on("disconnect", function(){
 		console.log("disconnected " + peripheral.advertisement.localName);
@@ -108,7 +113,7 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler) {
 			if ( (tmpReady) && (!this.yesReady) ) {
 				//console.log("Calling isReady for " + this.uniqueName)
 				this.isReady(null);
-				this.cbHandler.onDevFound(this, "Playbulb", this.periph.advertisement.localName, this.uniqueName);
+				this.cbHandler.onDevFound(this, "Playbulb", this.periph.advertisement.localName, this.uniqueName, this.BTAgent);
 			}
 		} else {
 			//console.log("processCharacteristic looked up Name not found " + "0x" + characteristic.uuid )
@@ -226,7 +231,7 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler) {
 					if (callback) {
 						callback(null,attrDetails);
 					} else {
-						 console.log("returning " + attrDetails)
+						 //console.log("returning " + attrDetails)
 					 	 return [null,attrDetails];
 					}
 				}
@@ -279,8 +284,8 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler) {
 				if (err) {
 					console.log("Read color error "+err)
 				}
-				console.log("Setting Color red=" + r + " green=" + g + " blue=" + b + " colorUuid="
-								+ that.characteristicsByName["colorUuid"].uuid + " colorBytes=" + bytesToHex(colorBytes) + " old color="+bytesToHex(cbin))
+				//console.log("Setting Color red=" + r + " green=" + g + " blue=" + b + " colorUuid="
+				//				+ that.characteristicsByName["colorUuid"].uuid + " colorBytes=" + bytesToHex(colorBytes) + " old color="+bytesToHex(cbin))
 
 				var withoutResponse = (that.characteristicsByName["colorUuid"].properties.indexOf('writeWithoutResponse') !== -1) &&
 										(that.characteristicsByName["colorUuid"].properties.indexOf('write') === -1);
@@ -297,7 +302,7 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler) {
     }.bind(this);
 
 	this.on = function () {
-		this.updateColorChar(this.alpha,this.red,this.green,this.blue);
+		this.updateColorChar(this.saturation,this.red,this.green,this.blue);
 	}.bind(this);
 	this.off = function () {
 		this.updateColorChar();
@@ -306,10 +311,12 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler) {
 		(onoff) ? this.on() : this.off();
 	}.bind(this);
 	this.setColor = function (r,g,b) {
-		this.updateColorChar(this.alpha,r,g,b)
+		var hsv = COLORS.rgb.hsv.raw(r,g,b);
+		this.updateColorChar(hsv[1],r,g,b)
 	}.bind(this);
 	this.setRGB = function (r,g,b) {
-		this.updateColorChar(this.alpha,r,g,b)
+		var hsv = COLORS.rgb.hsv.raw(r,g,b);
+		this.updateColorChar(hsv[1],r,g,b)
 	}.bind(this);
 	this.getColor = function (cb) {
 		//abyss var that=this
@@ -323,62 +330,72 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler) {
 				}
 			} else {
 				var cbin=bytesToHex(currentColorBytes).substring(0,2) + "," + COLORS.hex.rgb(bytesToHex(currentColorBytes).substring(2));
-				that.alpha = parseInt(cbin.split(",")[0],10)
+				that.saturation = parseInt(cbin.split(",")[0],10)
 				that.red = parseInt(cbin.split(",")[1],10)
 				that.green = parseInt(cbin.split(",")[2],10)
 				that.blue = parseInt(cbin.split(",")[3],10)
 				if (cb) {
-					cb(null, that.alpha, that.red, that.green, that.blue, cbin)
-					//console.log("Playbulb:getColor calling back - cbin=" + cbin + " a=" + that.alpha + 
+					cb(null, that.saturation, that.red, that.green, that.blue, cbin)
+					//console.log("Playbulb:getColor calling back - cbin=" + cbin + " a=" + that.saturation + 
 					//	" r=" + that.red + " g=" + that.green + " b=" +that.blue );
 				} else {
-					return null,COLORS.hex.rgb(null, that.alpha, that.red, that.green, that.blue, cbin)
+					return null,COLORS.hex.rgb(null, that.saturation, that.red, that.green, that.blue, cbin)
 				}
 			}
 			//console.log("BluetoothManager: Getting Color for " + that.playbulbName + " " +bytesToHex(currentColorBytes) + " conved=" + COLORS.hex.rgb(bytesToHex(currentColorBytes)) + " cbytes=" + currentColorBytes);
 		});
 	}.bind(this);
+	this.getBright = function () {
+		var hsv = COLORS.rgb.hsv.raw(this.red,this.green,this.blue);
+		return hsv[2];
+	}.bind(this);
 	this.setBright = function (a) {
-		this.alpha = (a) ? parseInt(a,10) : this.alpha;
-		this.updateColorChar(this.alpha,this.red,this.green,this.blue);
+		//console.log("Playbulb:setBright: current rgb =" + this.red + "," + this.green + "," + this.blue + " sat:" + this.saturation + " bright=" + this.brightness)
+		this.brightness = a;
+		var hsv = COLORS.rgb.hsv.raw(this.red,this.green,this.blue);
+		//console.log("Playbulb:setBright: current hsv =" + hsv[0] + "," + hsv[1] + "," + hsv[2]);
+		hsv[2] = a;
+		var rgb = COLORS.hsv.rgb(hsv);
+		//console.log("Playbulb:setBright: about to set rgb =" + rgb[0] + "," + rgb[1] + "," + rgb[2] + " sat:" + hsv[1] + " bright=" + this.brightness)
+		this.updateColorChar(hsv[1],rgb[0],rgb[1],rgb[2]);
+	}.bind(this);
+	this.setCTX = function(val) {
+		var rgb = CTXtoRGB(val);
+		this.setRGB(rgb.red,rgb.green,rgb.blue);
 	}.bind(this);
 	this.setEffect = function (effect,delay) {
+		//Pulse [0x00, r, g, b, 0x01, 0x00, 0x09, 0x00]
+		//Rainbow [0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x01, 0x00]
+		//Rainbow Fade[0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x26, 0x00]
+		/*
+		    setColor(r, g, b) {
+			  let data = new Uint8Array([0x00, r, g, b]);
+			  return this.device.gatt.getPrimaryService(CANDLE_SERVICE_UUID)
+			  .then(service => service.getCharacteristic(CANDLE_COLOR_UUID))
+			  .then(characteristic => characteristic.writeValue(data))
+			  .then(() => [r,g,b]);
+			}
+		*/
 	}.bind(this);
 	this.updateColorChar = function(a,r,g,b) {
+		//console.log("Update color for " + this.friendlyName + " saturation=" + a + " red=" + r + " green" + g + " blue=" + b);
 
-		this.connect( function() {
-			if (this.periph.state != "connected") {
-				console.log("BluetoothManager:updateColorChar " + this.uniqueName + " Not connected " + this.periph.state);
+		that.connect( function() {
+			if (that.periph.state != "connected") {
+				console.log("BluetoothManager:updateColorChar " + that.uniqueName + " Not connected " + that.periph.state);
 				return;
 			};
-			this.alpha = (a) ? parseInt(a,10) : this.alpha;
-			this.red = (r) ? parseInt(r,10) : this.red;
-			this.green = (g) ? parseInt(g,10) : this.green;
-			this.blue = (b) ? parseInt(b,10) : this.blue;
+			//console.log("Playbulb:updateColorChar: input r,g,b=" + r + "," + g + "," + b + " current rgb=" + that.red + "," + that.green + "," + that.blue)
+			that.saturation = (a) ? parseInt(a,10) : that.saturation;
+			that.red = (r) ? parseInt(r,10) : that.red;
+			that.green = (g) ? parseInt(g,10) : that.green;
+			that.blue = (b) ? parseInt(b,10) : that.blue;
 			var colorBytes = new Buffer([a, r, g, b]);
-			var withoutResponse = (this.characteristicsByName["colorUuid"].properties.indexOf('writeWithoutResponse') !== -1) &&
-										(this.characteristicsByName["colorUuid"].properties.indexOf('write') === -1);
-			var tmpSrvice;
-			var tmpInd;
-			var tmpInd2 = 1;
-			var tmpNoble;
-			var tmpOt = "";
-			for (tmpInd in this.periph.services) {
-				tmpSrvice = this.periph.services[tmpInd];
-				if (tmpOt) {
-					tmpOt = tmpOt + "," + "S" + "[" + tmpInd2 + "] has " + (tmpSrvice.characteristics ? tmpSrvice.characteristics.length + " chrs" : "is empty")
-				} else {
-					tmpOt = "S" + "[" + tmpInd2 + "] has " + (tmpSrvice.characteristics ? tmpSrvice.characteristics.length + " chrs" : "is empty") 	
-				}
-				//console.log("DEBUG "+tmpOt)
-				tmpInd2++;
-			}
-			this.characteristicsByName["colorUuid"].read(function(err,cbin){
+			//console.log("Playbulb:updateColorChar: current rgb now =" + that.red + "," + that.green + "," + that.blue)
+			var withoutResponse = (that.characteristicsByName["colorUuid"].properties.indexOf('writeWithoutResponse') !== -1) &&
+										(that.characteristicsByName["colorUuid"].properties.indexOf('write') === -1);
+			that.characteristicsByName["colorUuid"].read(function(err,cbin){
 				if (err) {console.log("BluetoothManager:updateColorChar: Read color error "+err)}
-				//console.log("BluetoothManager:updateColorChar for " + that.uniqueName + " uuid=" + that.periph.uuid +
-				//				" Setting Color red=" + r + " green=" + g + " blue=" + b + 
-				//				" colorUuid=" + that.characteristicsByName["colorUuid"].uuid +
-				//				" colorBytes=" + bytesToHex(colorBytes) + " old color="+bytesToHex(cbin))
 				that.characteristicsByName["colorUuid"].write(colorBytes, withoutResponse, function(error) {
 					if (error) {
 						console.log("BluetoothManager: Write color error"+error)
@@ -386,10 +403,46 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler) {
 						//console.log("BluetoothManager: Write color success")
 					}
 				  });
-			}.bind(this));
+			});
 			
-		}.bind(this));	
+		});	
 	}.bind(this);
 	
 	return (this)
 }.bind(this);
+function CTXtoRGB(kelvin) {
+	var tmpKelvin = kelvin/100;
+	var rgb={}
+	if (tmpKelvin <= 66) {
+		rgb.red = 255
+	} else {
+		rgb.red = tmpKelvin - 60;
+		rgb.red = 329.698727446 * Math.pow(rgb.red , -0.1332047592);
+		if (rgb.red < 0) {rgb.red = 0;}
+		if (rgb.red > 255) {rgb.red = 255;}
+	}
+	if (tmpKelvin <= 66) {
+		rgb.green = tmpKelvin;
+		rgb.green = 99.4708025861 * Math.log(rgb.green) - 161.1195681661;
+		if (rgb.green < 0) {rgb.green = 0;}
+		if (rgb.green > 255) {rgb.green = 255;}
+	} else {
+		rgb.green = tmpKelvin - 60;
+		rgb.green = 288.1221695283  * Math.pow(rgb.green , -0.0755148492);
+		if (rgb.green < 0) {rgb.green = 0;}
+		if (rgb.green > 255) {rgb.green = 255;}
+	}
+	if (tmpKelvin >= 66) {
+		rgb.blue = 255
+	} else {
+		if (tmpKelvin <=19) {
+			rgb.blue = 0
+		} else {
+			rgb.blue = tmpKelvin - 10
+			rgb.blue = 138.5177312231   * Math.log(rgb.blue) - 305.0447927307;
+			if (rgb.blue < 0) {rgb.blue = 0;}
+			if (rgb.blue > 255) {rgb.blue = 255;}
+		}
+	}
+	return rgb;
+}
