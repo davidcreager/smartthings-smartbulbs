@@ -62,7 +62,6 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 		//const bfr = Buffer.from(array);
 		var bfr = Buffer(18)
 		var i;
-		console.log("DEVUG SEND COMMAND type =" + typeof(array[0]));
 		for (i = 0; i < array.length; i++) {
 			bfr[i] = array[i]
 		};

@@ -34,6 +34,7 @@ console.log("smartbulbserver: input arguments are " + tmp)
 			enabledTypes[index-2] = val;
 		}
 	});
+
 	//console.log("smartbulbserver: input arguments are " + tmp + " enabledtypes (overriding properties.json)=" + enabledTypes);
 })();
 
@@ -108,12 +109,15 @@ var G_enabledTypes = ( function () {
 			}
 		}
 	});
-	if (!enabledTypes) {
+	if (enabledTypes.length==0) {
 		for (type in properties.bridgeEnabledTypes) {
+			//console.log("DEBUG enabledTypes type=" + type + " bridgeEnabledTypes[type]=" + JSON.stringify(properties.bridgeEnabledTypes[type]));
 			if (properties.bridgeEnabledTypes[type].enabled) {
 				enabledTypes.push(type);
 			}
 		}
+	} else {
+		//console.log("DEBUG enabledTypes not null");
 	}
 	return enabledTypes;
 })();	

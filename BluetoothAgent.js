@@ -154,7 +154,7 @@ exports.BluetoothAgent = function (handler) {
 			console.log("BluetoothAgent: createBulbObject: Unknown Type " + type)
 		}
 	};
-	this.findDevice = function(name,unique=true) {
+	this.findDevice = function(name,unique) {
 		//console.log("BluetoothAgent: findDevice: We have " + this.btDevices.length + " Devices" )
 		var obj = null;
 		var tmpPb = null;
@@ -197,13 +197,12 @@ exports.BluetoothAgent = function (handler) {
 				for (pbPrefix in properties[managerType].AdvertismentPrefixTypes) {
 					if (peripheralName.substring(0,pbPrefix.length) == pbPrefix) {
 						pbType = properties[managerType].AdvertismentPrefixTypes[pbPrefix];
-						if ( (enabledTypes) && (enabledTypes.includes(managerType)) ) {
+						if ( (enabledTypes.length!=0) && (enabledTypes.includes(managerType)) ) {
 							valid = true;
-						} else if (!enabledTypes) {
-							valid = properties[managerType].AdvertismentPrefixTypes[pbType]
+						} else if (enabledTypes.length==0) {
+							valid = properties[managerType].AdvertismentPrefixTypes[pbPrefix]
 						} else {
 							valid = false
-							
 						}
 					}
 				}
@@ -234,7 +233,7 @@ exports.BluetoothAgent = function (handler) {
 		} else {
 			if (! unknownDevices[peripheral.id] )
 			{
-				console.log("BluetoothAgent: Device not a playbulb " + peripheral.advertisement.localName + " id=" + peripheral.id);
+				console.log("BluetoothAgent: Device not supported " + peripheral.advertisement.localName + " id=" + peripheral.id);
 				unknownDevices[peripheral.id] = peripheral.id
 			}
 		}

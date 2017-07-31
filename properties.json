@@ -1,8 +1,8 @@
 {
 	"bridgeEnabledTypes" : {
-							"YeeBTLamp" : {"enabled" : false, "agent" : "BluetoothAgent"}
+							"YeeBTLamp" : {"enabled" : true, "agent" : "BluetoothAgent"}
 							,"YeeWifiLamp" : {"enabled" : true, "agent" : "YeeAgent"}
-							,"Playbulb" : {"enabled" : false, "agent" : "BluetoothAgent"}
+							,"Playbulb" : {"enabled" : true, "agent" : "BluetoothAgent"}
 							},
 	"ServerPort" : 8083,
 	"DevicePortStart" : 8201,
