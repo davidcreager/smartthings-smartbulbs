@@ -17,34 +17,28 @@
  */
 
 import groovy.json.JsonSlurper
+import groovy.json.JsonOutput
 
 metadata {
 	definition (name: "Yeelight RGBW Light", namespace: "davec1001", author: "David Creager") {
 		capability "Switch Level"
-		capability "Actuator"
         capability "Color Control"
 		capability "Switch"
 		capability "Refresh"
-		capability "Sensor"
         capability "Configuration"
         capability "Health Check"
-		capability "Color Temperature"
-
-        
-        
+        capability "Color Temperature"
+       
 		attribute "deviceID","string"
         attribute "mac","string"
         attribute "color","string"
         attribute "firmware","string"
-        attribute "devIP","string"
-        attribute "devPort","string"
-        attribute "bridgeIP","string"
-        attribute "bridgePort","string"
         attribute "colorMode","string"
         
 
         command "reset"
         command "setScene"
+        command "generateEvent"
         command "update" // from yeelight.light.colour
 
 	}
@@ -94,13 +88,15 @@ metadata {
         valueTile("colorTemp", "device.colorTemperature", inactiveLabel: false, height: 1, width: 2) {
 			state "colorTemp", label: '${currentValue}K'
 		}
-        valueTile("devIP", "devIP", width: 2, height: 1) {
-    		state "ip", label:'Device IP\r\n${currentValue}'
+        
+        valueTile("IP", "IP", width: 2, height: 1) {
+    		state "IP", label:'Device \r\n${currentValue}'
 		}
         
-        valueTile("bridgeIP", "bridgeIP", width: 2, height: 1) {
-    		state "ip", label:'Bridge IP\r\n${currentValue}'
+        valueTile("DeviceIP", "DeviceIP", width: 2, height: 1) {
+    		state "DeviceIP", label:'Device \r\n${currentValue}'
 		}
+        
 		valueTile("firmware", "firmware", width: 2, height: 1) {
     		state "firmware", label:'Firmware ${currentValue}'
 		}
@@ -112,7 +108,7 @@ metadata {
                 ]
         }
     main "switch"
-	details(["switch", "colorTempSliderControl", "colorTemp", "refresh", "configure", "devIP", "firmware","bridgeIP","colorMode" ])      
+	details(["switch", "colorTempSliderControl", "colorTemp", "refresh", "configure", "deviceIP", "firmware","colorMode" ])      
    }
 }
 
@@ -139,19 +135,6 @@ def updated()
     if (cmds != []) response(cmds)
 }
 
-private def logging(message, level) {
-    if (logLevel != "0"){
-    switch (logLevel) {
-       case "1":
-          if (level > 1)
-             log.debug "$message"
-       break
-       case "99":
-          log.debug "$message"
-       break
-    }
-    }
-}
 
 def getDefault(){
     if(settings.dcolor == "Previous") {
@@ -198,21 +181,22 @@ def parse(description) {
 }
 
 void on() {
-	sendToParent(this,"/on")
+	sendToParent(this,"/on","")
 }
 
 void off() {
-	sendToParent(this,"/off")
+	sendToParent(this,"/off","")
 }
 
 def setLevel(level) {
-    log.debug "Executing 'setLevel'"
-	setLevel(level, 1)
+    log.debug "Executing 'setLevel' level = ${level}"
+	setLevel( level.toInteger() , 1)
 }
 
 def setLevel(level, duration) {
 	log.debug "setLevel() level = ${level}"
     if(level > 100) level = 100
+    log.debug "setLevel traced 1"
     if (level == 0) { off() }
     else if (device.latestValue("switch") == "off") { on() }
     state.level=level
@@ -229,7 +213,8 @@ def setHue(value) {
 }
 def setColor(value) {
     log.debug "setColor being called with ${value}"
-    def uri
+    def query
+	def command
     def validValue = true
     if (value.hex) {
        log.debug "setting color with hex"
@@ -242,8 +227,10 @@ def setColor(value) {
            def mygreen = rgb[1] < 40 ? 0 : rgb[1]
            def myblue = rgb[2] < 40 ? 0 : rgb[2]
            log.debug("setcolor red="+myred+" green="+mygreen+" blue="+myblue)
-           uri = "/rgb?mode=hex&value="+URLEncoder.encode(value.hex)+"&saturation="+URLEncoder.encode(value.saturation.toString())+"&hue="+URLEncoder.encode(value.hue.toString())
-           log.debug("setColor: test URLEncoder.encode="+URLEncoder.encode(value.hex))
+		   command = "/rgb"
+           //query = "mode=hex&value="+URLEncoder.encode(value.hex)+"&saturation="+URLEncoder.encode(value.saturation.toString())+"&hue="+URLEncoder.encode(value.hue.toString())
+           query = "mode=hex&value=" + value.hex + "&saturation=" + value.saturation.toString() + "&hue=" + value.hue.toString()
+           //log.debug("setColor: test URLEncoder.encode="+URLEncoder.encode(value.hex))
            //uri = "/rgb?decimal=${RGBToDec(myred,mygreen,myblue)}"
            state.color=value
        }
@@ -252,66 +239,51 @@ def setColor(value) {
 		def saturation = (value.saturation != null) ? value.saturation : 13
 		def rgb = huesatToRGB(hue as Integer, saturation as Integer)
         value.hex = rgbToHex([r:rgb[0], g:rgb[1], b:rgb[2]])
-		uri = "/rgb?mode=hsv&hue="+value.hue+"&saturation="+value.saturation+"&level="+state.level
+		command = "/rgb"
+		query = "mode=hsv&hue=" + value.hue + "&saturation=" + value.saturation + "&level=" + state.level
     } else if (value.aLevel) {
-        uri="/set_bright?value=${value.aLevel}"
+		command = "/set_bright"
+        query="value=${value.aLevel}"
     } else {
        // A valid color was not chosen. Setting to white
        //uri = "/rgb?mode=hex&value=${RGBToDec(255,240,255)}"
-       uri = "/rgb?mode=hex&value=FFFAF0"
+	   command = "/rgb"
+	   query = "mode=hex&value=FFFAF0"
     }
     
     //if (uri != null && validValue != false) sendToParent("$uri&channels=$channels&transition=$transition")
-    if (uri!=null) {
-	    log.trace sendToParent(this,uri)
+    if (command!=null) {
+	    log.trace sendToParent(this,command,query)
     }
 
 }
 def setColorTemperature(kelvin) {
 	log.debug "Executing 'setColorTemperature' to ${kelvin}"
     state.colorTemperature=kelvin
-    sendToParent(this,"/ctx?value=${kelvin}")
+    sendToParent(this,"/ctx","value=${kelvin}")
 }
 
-private sendToParent(thisDevice,uri){
+private sendToParent(thisDevice,command,query){
 	updateDNI()
-    log.debug("sendToParent: uri="+uri)
+    log.debug("sendToParent: command=" +command + " query=" + query)
     if (thisDevice==null) {
     	log.debug("sendToParent thisDevice is null")
     } else {
-    	if (uri.indexOf("config")==-1) {
-        	if ( (state?.currentProperties?.transition) && (state?.currentProperties?.transitionspeed) ) {
-                if (uri.indexOf("?")==-1){
-                    uri = uri + "?transition=" + state.currentProperties.transition + "&transitionspeed=" + state.currentProperties.transitionspeed
-                } else {
-                    uri = uri + "&transition=" + state.currentProperties.transition + "&transitionspeed=" + state.currentProperties.transitionspeed
-                }
-			}
+    	if ( command.indexOf("config")==-1 && (state?.currentProperties?.transition) && (state?.currentProperties?.transitionspeed) ) {
+			query = query + "&transition=" + state.currentProperties.transition + "&transitionspeed=" + state.currentProperties.transitionspeed
         }
-		parent.doThis(thisDevice,uri)
+		parent.doThis(thisDevice,command,query)
    }
 	
 }
 def generateEvent(results){
-	log.debug("generateEvent: Received Events name="+results.name+" value="+results.value)
-    sendEvent(name: results.name, value: results.value)
+	log.debug("generateEvent: Received Events name=" + results.name + " value=" + results.value + ( (results.value instanceof String) ? " String" : " Not String") )
+    if ((results.value instanceof String)) {
+    	sendEvent(name: results.name, value: results.value )
+     } else {
+     	sendEvent(name: results.name, value: JsonOutput.toJson(results.value))
+     }
   return null
-}
-private getAction(uri){ 
-  updateDNI()
-  def userpass
-  def newURI="/HubAction/" + device.deviceNetworkId + uri
-  def headers = getHeader(userpass)
-  log.debug ("getAction: newuri=" + newURI + " uri=" + uri + " name=" + device.getName() + "mac=" + device.deviceNetworkId + " header.host=" + getHeader(userpass).HOST)
-  if (password != null && password != "") {
-    userpass = encodeCredentials("admin", password)
-	headers = getHeader(userpass)
-  }
-  def hubAction = new physicalgraph.device.HubAction(
-    	method: "GET", path: newURI, headers: headers
-  )
-  log.debug("getAction:headers="+headers)
-  return hubAction    
 }
 
 def reset() {
@@ -320,7 +292,26 @@ def reset() {
 }
 
 def refresh() {
-	sendToParent(this,"/refresh")
+	sendToParent(this,"/refresh","")
+    /*
+        def subscribePath = "/subscription" + "?uniqueName=" + getDeviceDataByName("uniqueName")
+        //def subscribeCallBack = "<http://" + location.hubs[0].localIP + ":" + location.hubs[0].localSrvPortTCP + "/notify/returnmessage"
+        //def subscribeCallBack = "<http://" + location.hubs[0].localIP + ":" + location.hubs[0].localSrvPortTCP + "/returnmessage"
+        def subscribeCallBack = "<http://" + location.hubs[0].localIP + ":" + location.hubs[0].localSrvPortTCP + "/"
+        def subscribeHost = getDeviceDataByName("IP") + ":" + getDeviceDataByName("port")
+        def result = new physicalgraph.device.HubAction(
+                method: "SUBSCRIBE",
+                path: subscribePath,
+                headers: [
+                    HOST: subscribeHost,
+                    CALLBACK: subscribeCallBack,
+                    NT: "upnp:event",
+                    TIMEOUT: "Second-28800"
+                ] )
+        sendHubCommand(result)
+        log.debug("refresh: SUBSCRIBE name=${getDeviceDataByName("uniqueName")} path=$subscribePath host=$subscribeHost callback=$subscribeCallBack")
+	    return result
+        */
 }
 
 
@@ -379,25 +370,16 @@ def rgbToHex(rgb) {
     hexColor
 }
 
-def sync(ip, port, bIP, bPort) {
-    def existingIp = getDataValue("devIP")
-    def existingPort = getDataValue("devPort")
-    def existingBIP = getDataValue("bridgeIP")
-    def existingBPort = getDataValue("bridgePort")
+def sync(ip, port) {
+    def existingIp = getDataValue("IP")
+    def existingPort = getDataValue("port")
     if (ip && ip != existingIp) {
-        updateDataValue("devIP", ip)
-        sendEvent(name: 'devIP', value: ip)
+        updateDataValue("IP", ip)
+        sendEvent(name: 'IP', value: ip)
     }
     if (port && port != existingPort) {
-        updateDataValue("devPort", port)
+        updateDataValue("port", port)
     }
-    if (bIP && bIP != existingBIP) {
-        updateDataValue("bridgeIP", bIP)
-        sendEvent(name: 'bridgeIP', value: bIP)
-    }
-    if (bPort && bPort != existingBPort) {
-        updateDataValue("bridgePort", bPort)
-    }    
 }
 
 private setDeviceNetworkId(ip, port = null){
@@ -407,7 +389,6 @@ private setDeviceNetworkId(ip, port = null){
     } else {
   	    def iphex = convertIPtoHex(ip)
   	    def porthex = convertPortToHex(port)
-        
         myDNI = "$iphex:$porthex"
     }
     log.debug "Device Network Id set to ${myDNI}"
@@ -415,13 +396,16 @@ private setDeviceNetworkId(ip, port = null){
 }
 
 private updateDNI() { 
-		//log.debug("old was "+device.deviceNetworkId+" new is " + state.dni)
-        //log.debug("devIP is "+getDeviceDataByName("devIP")+" bridgeIP is "+getDeviceDataByName("bridgeIP")+" devMac="+getDeviceDataByName("devMac")+" bridgeMac="+getDeviceDataByName("bridgemac"))
-        state.dni=getDeviceDataByName("devMac")
+	log.debug( "updateDNI device host=" + getDeviceDataByName("ip") + ":" + getDeviceDataByName("port") )
+	def iphex = convertIPtoHex(getDeviceDataByName("ip"))
+  	def porthex = convertPortToHex(getDeviceDataByName("port"))
+    def svDni = device.deviceNetworkId 
     if (state.dni != null && state.dni != "" && device.deviceNetworkId != state.dni) {
        device.deviceNetworkId = state.dni
+       log.debug("old deviceNetworkId =" + svDni + " now=" + device.deviceNetworkId + " state.dni is " + state.dni)
     }
 }
+
 
 private getHostAddress() {
     if(getDeviceDataByName("ip") && getDeviceDataByName("port")){
@@ -480,17 +464,17 @@ def toAscii(s){
 
 def onOffCmd(value, program) {
     log.debug "onOffCmd($value, $program)"
-    def uri
+    def command
     if (value == 1){
        if(state."program${program}" != null) {
-          uri = "/program?value=${state."program${program}"}&number=$program"
+          command = "/program?value=${state."program${program}"}&number=$program"
        }    
     } else if(value == 0){
-       uri = "/stop"
+       command = "/stop"
     } else {
-       uri = "/off"
+       command = "/off"
     }
-    if (uri != null) return sendToParent(uri)
+    if (command != null) return sendToParent(command)
 }
 
 def setProgram(value, program){
@@ -650,12 +634,12 @@ def update_needed_settings()
                if (it.@setonly == "true"){
                   //log.debug("Config stuff (2): Setting ${it.@index} will be updated to ${convertParam("${it.@index}", it.@value)}")
                   //log.debug("Config stuff (2): cmd=" + "/configSet?name=${it.@index}&value=${convertParam("${it.@index}", it.@value)}")
-                  cmds << sendToParent(this,"/configSet?name=${it.@index}&value=${convertParam("${it.@index}", it.@value)}")
+                  cmds << sendToParent(this,"/configSet","name=${it.@index}&value=${convertParam("${it.@index}", it.@value)}")
                } else {
                   isUpdateNeeded = "YES"
                   //log.debug("Config stuff (3): Current value of setting ${it.@index} is unknown")
                   //log.debug("Config stuff (3): cmd=" + "/configGet?name=${it.@index}")
-                  cmds << sendToParent(this,"/configGet?name=${it.@index}")
+                  cmds << sendToParent(this,"/configGet","name=${it.@index}")
                   
                }
             }
@@ -663,7 +647,7 @@ def update_needed_settings()
             { 
                 isUpdateNeeded = "YES"
                 //log.debug("Config stuff (4): Setting ${it.@index} will be updated to ${convertParam("${it.@index}", settings."${it.@index}")}")
-                cmds << sendToParent(this,"/configSet?name=${it.@index}&value=${convertParam("${it.@index}", settings."${it.@index}")}")
+                cmds << sendToParent(this,"/configSet","name=${it.@index}&value=${convertParam("${it.@index}", settings."${it.@index}")}")
                 //log.debug("Config stuff (4): cmd=" + "/configSet?name=${it.@index}&value=${convertParam("${it.@index}", settings."${it.@index}")}")
             } 
         }
