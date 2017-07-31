@@ -28,7 +28,7 @@ var types = {
      },
 };
 */
-exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent) {
+exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, bri) {
     playbulbName = playbulbName || "Playbulb";
 	//console.log("BluetoothManager: type=" + type + " colorUuid=" + " types[type].colorUuid=" + types[type].colorUuid)
 	//abyss 
@@ -57,7 +57,7 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent) 
     this.waiting = [];
     this.modes = { FLASH: 0, PULSE: 1, RAINBOWJUMP: 2, RAINBOWFADE: 3}
 	this.saturation = 0;
-	this.brightness = 0;
+	this.bright = parseInt(bri,10) || 100;
 	this.red = 255;
 	this.green = 255;
 	this.blue = 255;
@@ -350,13 +350,13 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent) 
 		return hsv[2];
 	}.bind(this);
 	this.setBright = function (a) {
-		//console.log("Playbulb:setBright: current rgb =" + this.red + "," + this.green + "," + this.blue + " sat:" + this.saturation + " bright=" + this.brightness)
-		this.brightness = a;
+		//console.log("Playbulb:setBright: current rgb =" + this.red + "," + this.green + "," + this.blue + " sat:" + this.saturation + " bright=" + this.bright)
+		this.bright = a;
 		var hsv = COLORS.rgb.hsv.raw(this.red,this.green,this.blue);
 		//console.log("Playbulb:setBright: current hsv =" + hsv[0] + "," + hsv[1] + "," + hsv[2]);
 		hsv[2] = a;
 		var rgb = COLORS.hsv.rgb(hsv);
-		//console.log("Playbulb:setBright: about to set rgb =" + rgb[0] + "," + rgb[1] + "," + rgb[2] + " sat:" + hsv[1] + " bright=" + this.brightness)
+		//console.log("Playbulb:setBright: about to set rgb =" + rgb[0] + "," + rgb[1] + "," + rgb[2] + " sat:" + hsv[1] + " bright=" + this.bright)
 		this.updateColorChar(hsv[1],rgb[0],rgb[1],rgb[2]);
 	}.bind(this);
 	this.setCTX = function(val) {

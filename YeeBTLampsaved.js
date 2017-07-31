@@ -18,7 +18,7 @@ function bytesToHex (bytes) {
 •Set delay to off:  437f01%02x  Will add more soon...
 
 */
-exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, bri) {
+exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent) {
     YeeBTLampName = YeeBTLampName || "YeeBTLamp";
 	//console.log("YeeBTLamp: type=" + type + " colorUuid=" + " types[type].colorUuid=" + types[type].colorUuid)
 	//abyss 
@@ -49,7 +49,6 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 	this.red = 255;
 	this.green = 255;
 	this.blue = 255;
-	this.bright = parseInt(bri,10) || 100;
 	this.retry_cnt = 0;
 	this.paired = null;
 	this.keepAliveTimer = null;
@@ -62,7 +61,6 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 		//const bfr = Buffer.from(array);
 		var bfr = Buffer(18)
 		var i;
-		console.log("DEVUG SEND COMMAND type =" + typeof(array[0]));
 		for (i = 0; i < array.length; i++) {
 			bfr[i] = array[i]
 		};
@@ -173,13 +171,53 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 		}
     }.bind(this);
 	this.processCharacteristic = function(characteristic) {
-		var {lookedUpName,chrType,proprietaryCharacteristic} = this.lookupCharacteristic(characteristic);
-		//this.debugCharacteristic(characteristic);
+		//var miPowCharTable = require("./properties.json").YeeBTLamp.Characteristics
+		var lookedUpName = G_charTable["0x" + characteristic.uuid.toLowerCase() ];
+		var chrType = ""
+		var proprietaryCharacteristic = false;
+		if (!lookedUpName) {
+			lookedUpName = require("./properties.json").YeeBTLamp.Characteristics["0x" + characteristic.uuid.toLowerCase()];
+			chrType="hex";
+			proprietaryCharacteristic=true;
+		}
+		console.log("BluetoothAgent:DEBUG " + this.periph.advertisement.localName + " service uuid=" + characteristic._serviceUuid + " char uuid=" + characteristic.uuid +
+							" type=" + characteristic.type + 
+							(characteristic.name=="" ? " name=" + characteristic.name : " looked up=" + lookedUpName) + characteristic.properties)
+		characteristic.discoverDescriptors(function(error,descriptors) {
+			var ind;
+			if (error) {
+				console.log("BluetoothAgent:discoverDescriptors: error " + error + " characteristic uuid=" + characteristic.uuid)
+			} else {
+				for (ind in descriptors) {
+					console.log("BluetoothAgent:Descriptors " + characteristic.uuid + " " + lookedUpName + 
+					" descriptor name=" + descriptors[ind].name + " type=" + descriptors[ind].type);
+				}
+			}
+		});
+		characteristic.read(function(error,data){
+			var attData;
+			if (error) {
+				console.log("BluetoothAgent:readValues: error " + error + " characteristic uuid=" + characteristic.uuid)
+			} else {
+				attData = (chrType == "uint8") ? attData = data.readUInt8(0) : attData = data.toString();
+				attData = (chrType == "hex") ? attData = bytesToHex(data) : attData = attData;
+				console.log("BluetoothAgent:readcharacteristic: " + characteristic.uuid + " " + lookedUpName + " data=" + attData);
+			}
+		});
+
 		if (lookedUpName) {
 			//console.log("processing characteristic pbulb=" + this.uniqueName  + " characteristic.uuid=" + characteristic.uuid +  " " + lookedUpName + " properties=" + characteristic.properties)
 			chrType = (lookedUpName.indexOf("battery") != -1) ? "uint8" : chrType
 			chrType = (lookedUpName.indexOf("pnp_id") != -1) ? "hex" : chrType
+			if (this.characteristicsByName[lookedUpName]) {
+				if ((this.characteristicsByName[lookedUpName]!=characteristic) && proprietaryCharacteristic) {
+					//console.log("DEBUG weirdness characteristic already set pbulb=" + this.uniqueName + " name=" + lookedUpName + 
+					//			" array uuid=" + this.characteristicsByName[lookedUpName]._peripheralId +
+					//			" incoming.uuid=" + characteristic._peripheralId)
+				}
+			}
 			this.characteristicsByName[lookedUpName] = characteristic;
+			
 			if (lookedUpName == "NOTIFY_CHARACT_UUID") {
 				this.characteristicsByName[lookedUpName].on("data", function(data, isNotify){
 					that.handleNotification( data, isNotify);
@@ -192,7 +230,33 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 					 // 43 67 for auth
 					 // deadbeef as magic for our Pi - 0xde,0xad,0xbe,0xbf
 			   });
-			};			
+			};
+			/* characteristic.read(function(error,data){
+				var attData;
+				if (error) {
+					console.log("Reading Characteristic: " + peripheral.advertisement.localName + " data error " + error )
+				} else {
+					attData = (chrType == "uint8") ? attData = data.readUInt8(0) : attData = data.toString();
+					attData = (chrType == "hex") ? attData = bytesToHex(data) : attData = attData;
+					//console.log("found for " + this.YeeBTLampName + " " + characteristic.uuid + " characterist.name=" + characteristic.name + 
+					//		" lookedUpName=" + lookedUpName + " data=" + attData );
+				}
+			}); */
+			
+			/*Moved isready to handleNotification
+			var chr;
+			var tmpReady = true;
+			for (chr in this.requiredCharacteristics) {
+				if (!this.characteristicsByName[this.requiredCharacteristics[chr]]) {
+					tmpReady=false;
+				}
+			};
+			if ( (tmpReady) && (!this.yesReady) ) {
+				//console.log("Calling isReady for " + this.uniqueName)
+				this.isReady(null);
+				this.cbHandler.onDevFound(this, "YeeBTLamp", this.periph.advertisement.localName, this.uniqueName);
+			}
+			*/
 		} else {
 			//console.log("processCharacteristic looked up Name not found " + "0x" + characteristic.uuid )
 		}
@@ -330,73 +394,18 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 		//this.sendBlueToothCommand([
 	}.bind(this);
 	this.setBright = function (val) {
-		console.log("DEBUG received setbright val=" + val + " parseInt(16)=" + parseInt(val,10) + " toString=" + parseInt(val,10).toString(16))
-		//this.sendBlueToothCommand([0x43,0x42,parseInt(val.toString(16), 16)]);
-		//this.sendBlueToothCommand([0x43,0x42,parseInt(val,10).toString(16)]);
-		if (parseInt(val,10) > 100 || parseInt(val,10) < 1 ) {
-			console.log("YeeBTLamp:setBright:INVALID Brightness " + val + " , must be between 1 and 100")
-		} else {		
-			this.bright = parseInt(val,10);
-			this.sendBlueToothCommand([0x43,0x42,parseInt(val,10)]);
-		}
+		this.sendBlueToothCommand([0x43,0x42,parseInt(val.toString(16), 16)]);
 	}.bind(this);
 	this.setCTX = function(val) {
-		//var rgb = CTXtoRGB(val);
-		if (parseInt(val,10) > 6500 || parseInt(val,10) < 1700 ) {
-			console.log("YeeBTLamp:setCTX:INVALID CTX " + val + " , must be between 1700 and 6500")
-		} else {
-			//var padded = (parseInt(val,10) + 1e5).toString().slice(-4).toString(16);
-			var padded = ("00000" + parseInt(val,10).toString(16)).slice(-4);
-			console.log("DEBUG CTX val=" + val + " tostring(16)=" + parseInt(val,10).toString(16) + 
-				" padded=" + padded + " " + padded.slice(0,2) + " " + padded.slice(-2));
-			this.sendBlueToothCommand([0x43,0x43,parseInt(padded.slice(0,2),16),parseInt(padded.slice(-2),16),this.bright]);
-			//this.setRGB(rgb.red,rgb.green,rgb.blue);
-		}
+		var rgb = CTXtoRGB(val);
+		this.setRGB(rgb.red,rgb.green,rgb.blue);
 	}.bind(this);
 	this.updateColorChar = function(a,r,g,b) {
 		this.sendBlueToothCommand([0x43,0x41,parseInt(r.toString(16), 16),parseInt(g.toString(16), 16),parseInt(b.toString(16), 16),0xFF,0x65]);
 	}.bind(this);
-	this.debugCharacteristic =  function(characteristic) {
-		var {lookedUpName,chrType,proprietaryCharacteristic} = this.lookupCharacteristic(characteristic);
-		console.log("BluetoothAgent:debugCharacteristic: " + this.periph.advertisement.localName + " service uuid=" + characteristic._serviceUuid + " char uuid=" + characteristic.uuid +
-							" type=" + characteristic.type + 
-							(characteristic.name=="" ? " name=" + characteristic.name : " looked up=" + lookedUpName) + characteristic.properties)
-		characteristic.discoverDescriptors(function(error,descriptors) {
-			var ind;
-			if (error) {
-				console.log("BluetoothAgent:debugCharacteristic: discover descriptors error " + error + " characteristic uuid=" + characteristic.uuid)
-			} else {
-				for (ind in descriptors) {
-					console.log("BluetoothAgent:debugCharacteristic:Descriptors " + characteristic.uuid + " " + lookedUpName + 
-					" descriptor name=" + descriptors[ind].name + " type=" + descriptors[ind].type);
-				}
-			}
-		});
-		characteristic.read(function(error,data){
-			var attData;
-			if (error) {
-				console.log("BluetoothAgent:debugCharacteristic:readValues: error " + error + " characteristic uuid=" + characteristic.uuid)
-			} else {
-				attData = (chrType == "uint8") ? attData = data.readUInt8(0) : attData = data.toString();
-				attData = (chrType == "hex") ? attData = bytesToHex(data) : attData = attData;
-				console.log("BluetoothAgent:debugCharacteristic:readValues: " + characteristic.uuid + " " + lookedUpName + " value=" + attData);
-			}
-		});
-	}.bind(this);
-	this.lookupCharacteristic = function (characteristic) {
-		var lookedUpName = G_charTable["0x" + characteristic.uuid.toLowerCase() ];
-		var chrType = ""
-		var proprietaryCharacteristic = false;
-		if (!lookedUpName) {
-			lookedUpName = require("./properties.json").YeeBTLamp.Characteristics["0x" + characteristic.uuid.toLowerCase()];
-			chrType="hex";
-			proprietaryCharacteristic=true;
-		}
-		return {lookedUpName: lookedUpName, chrType: chrType, proprietaryCharacteristic: proprietaryCharacteristic};
-	};
-	return (this);
+	
+	return (this)
 }.bind(this);
-
 function nonBlockingWaitForCondition(condFunc,callback) {
 	console.log(" wait check "+condFunc());
 	var checkFunc = function() {

@@ -75,12 +75,14 @@ const G_oauthToken = {
 const G_serverPort = properties.ServerPort
 var devicePortCounter = properties.DevicePortStart
 
-var	smartBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn:"SmartBridge", suppressRootDeviceAdvertisements:true,
+//var	smartBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn:"SmartBridge", suppressRootDeviceAdvertisements:true,
+var	smartBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn:"SmartBridge", 
 					location:"http://"+ ip.address() + ":" + G_serverPort + '/bridge'})
 	smartBridgeSSDP.addUSN('urn:schemas-upnp-org:device:SmartBridge:1')
-	smartBridgeSSDP.start()
-console.log("smartbulbserver: SmartbulbBridge Bridge - Starting SSDP Annoucements for Bridge Device (SmartBridge) IP:PORT=" 
-		+ ip.address() + ":" + G_serverPort )
+	smartBridgeSSDP.start();
+	console.log("smartbulbserver: Starting SSDP Annoucements for Bridge " + 
+			" location=" +  "http://"+ ip.address() + ":" + G_serverPort + '/bridge'
+			+ " usn=" + 'urn:schemas-upnp-org:device:SmartBridge:1');
 var server = http.createServer(httpRequestHandler)
 server.listen(G_serverPort);
 servers[G_serverPort]=server;
@@ -90,6 +92,10 @@ var G_enabledTypes = ( function () {
 	var type;
 	var tmp="";
 	var enabledTypes = []
+	var stringOfPossibleTypes="";
+	for (let i0 in properties.bridgeEnabledTypes) {
+		stringOfPossibleTypes = (stringOfPossibleTypes=="" ? i0 : stringOfPossibleTypes + " or " + i0)
+	}
 	process.argv.forEach((val, index) => {
 		tmp == "" ? tmp = index + ":" + val : tmp = tmp + "," + index + ":" + val
 		if (index > 1) {
@@ -97,7 +103,7 @@ var G_enabledTypes = ( function () {
 			//enabledTypes[index-2] = val;
 			enabledTypes.push(val);
 			if (  (!properties.bridgeEnabledTypes[val]) ) {
-				console.log("input type does not exist")
+				console.log("\nINPUT ERROR - type does not exist should be " + stringOfPossibleTypes)
 				throw "invalid input argument";
 			}
 		}
@@ -256,27 +262,29 @@ handleAgentEvents.onDevFound = function(device, type, name, uniqueName, agent) {
 		if (!smartSSDs[uniqueName]) {
 			if (!servers[devicePortCounter]) {
 				servers[devicePortCounter]=http.createServer(httpRequestHandler);
-				console.log("smartbulbserver: Created server(" + ip.address() + ":" + devicePortCounter + ")" +
-												" friendly=" + device.friendlyName + " usn=" + 'urn:schemas...device:' + type +  ':1' +
-												" unique=" + device.uniqueName + " type=" + type )
+				console.log("smartbulbserver: Created server for " + device.friendlyName + " IP:PORT=" + ip.address() + ":" + devicePortCounter + 
+												" unique=" + device.uniqueName + " type=" + type );
 			} else {
 				console.log("smartbulbserver:handleAgentEvents:onDevFound: Weird server already exists")
 			}
 
 			servers[devicePortCounter].listen(devicePortCounter)
 			smartSSDs[device.uniqueName] = new SSDP({allowWildcards:true,sourcePort:1900,udn:device.uniqueName,
-								location:"http://"+ ip.address() + ":" + devicePortCounter +
-								//'/light' + encodeURIComponent('?' + "uniqueName="+ device.uniqueName + '&type=' + type)
-								'/light?uniqueName=' + device.uniqueName + '&type=' + type
-								});
-			//console.log("smartbulbserver:handleAgentEvents: adding device ssdp urn:schemas-upnp-org:device:" + type +  ':1');
+						location:"http://"+ ip.address() + ":" + devicePortCounter +
+						'/light?' + "uniqueName="+ device.uniqueName +
+						'&type=' + type
+						});
 			smartSSDs[device.uniqueName].addUSN('urn:schemas-upnp-org:device:' + type +  ':1');
+			console.log("smartbulbserver: Starting SSDP Annoucements for " + device.friendlyName +
+					" location=" +  "http://"+ ip.address() + ":" + devicePortCounter + '/light?' + "uniqueName="+ device.uniqueName + '&type=' + type
+					+ " usn=" + 'urn:schemas-upnp-org:device:' + type +  ':1');
 			smartSSDs[device.uniqueName].start();
 			smartConfigs[device.uniqueName]= Object.assign({}, properties[type].Configs);
 			smartPorts[device.uniqueName] = devicePortCounter;
 			smartSids[device.uniqueName] = UUID();
 			smartDevices[device.uniqueName] = device;
 			devicePortCounter++;
+			//debugHandles(device);
 		} else {
 			//console.log("smartbulbserver:handleAgentEvents:onDevFound: Device already exists "+device.uniqueName)
 		}
@@ -371,13 +379,10 @@ function httpRequestHandler(req,resp) {
 	var url=URL.parse(req.url, true);
 	var query = querystring.parse(url.query);
 	var smartDevice;
-	if (url.pathname!="/bridge") {
-		console.log("smartbulbserver:httpRequestHandler: Received Request pathname=" + url.pathname + 
-								" query=" + JSON.stringify(url.query) + " from:" + req.connection.remoteAddress)
-	}
-	//console.log("smartbulbserver:httpRequestHandler: req.url=" + req.url + " pathname=" + url.pathname + 
-	//			" query=" + JSON.stringify(url.query) +
-	//			" request from=" + req.connection.remoteAddress)
+	//if (url.pathname!="/bridge") {
+		console.log("smartbulbserver:httpRequestHandler: Received Request pathname=" + url.pathname  + " from:" + req.connection.remoteAddress + 
+								" query=" + JSON.stringify(url.query))
+	//}
 	if (url.pathname == "/bridge") {
 		resp.writeHead(200, {"Content-Type": "text/xml"});
 		//resp, ssdpDeviceType, friendlyName, uniqueName, IP, port, modelInfo
@@ -504,7 +509,7 @@ function httpRequestHandler(req,resp) {
 						console.log("smartbulbserver:httpRequestHandler: on/off url  pathname=" + url.pathname + " friendlyName=" + smartDevice.friendlyName + " uniqueName=" + smartDevice.uniqueName + " mode=" + url.query.mode + " value=" + url.query.value)
 					} else if (url.pathname.includes("/ctx")) {
 						retObj = {"uniqueName": smartDevice.uniqueName, "method": "set_ctx", "params": {"value": [url.query.value]}}
-						smartDevice.setctx(url.query.value, effect, duration, commandSeq);
+						smartDevice.setCTX(url.query.value, effect, duration, commandSeq);
 						console.log("smartbulbserver:httpRequestHandler: set Color Temp url - req.url=" + req.url + 
 										" pathname=" + url.pathname + " queryObj=" + JSON.stringify(url.query) );
 					} else if (url.pathname.includes("/refresh")) {
@@ -615,8 +620,10 @@ function retProps(obj,onlyNames = false){
 			if (Object.hasOwnProperty.call(obj, property)) {
 				var prp=obj[property]
 				if (typeof(prp)=="object"){
-					prp="OBJECT"
-				} 
+					prp="OBJECT";
+				} else if (typeof(prop)=="function") {
+					prp="FUNCTION";
+				}
 				if (props=="") {
 					props=property + (onlyNames) ? "" : ":" + prp
 				} else {
@@ -635,4 +642,35 @@ function encodeXml(s) {
         .replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/\t/g, '&#x9;').replace(/\n/g, '&#xA;').replace(/\r/g, '&#xD;')
     );
+}
+function debugHandles(device) {
+	console.log("DEBUG 0 " + device.friendlyName + " periph=" + device.periph._noble.state +
+			" " + device.periph._noble.address +
+			" binding state=" + device.periph._noble._bindings._state +
+			" handles=" + JSON.stringify(device.periph._noble._bindings._handles[device.periph.uuid])
+			);
+	var binds = device.periph._noble._bindings;
+	var handle = binds._handles[device.periph.uuid]
+	var gattServices = "";
+	var gattCharProps = "";
+	var gattCharacteristics = binds._gatts[64]._characteristics //this is an array of arrays by serviceUUID
+	for (let tmp in device.periph.services) {
+		gattServices = (gattServices=="" ? "[" + tmp + "]=" + device.periph.services[tmp].uuid : gattServices + ", " + 
+			"[" + tmp + "]=" + device.periph.services[tmp].uuid )
+	}
+	var charas = binds._gatts[64]["_characteristics"];
+	for (let tmp in charas ) {
+		for (let i0 in charas[tmp]) {
+			console.log("Gatt Characteristic dump for :" + "[" + tmp + "]" + "[" + i0 + "]" + 
+					" valueHandle=" + charas[tmp][i0].valueHandle + " 0x" + 
+					charas[tmp][i0].valueHandle.toString(16));
+					for (let i1 in charas[tmp][i0]) {
+						if (gattCharProps.indexOf(i1)==-1) {
+								gattCharProps = ( gattCharProps=="" ? i1 : gattCharProps + ", " + i1);
+						}
+					}
+		}
+	}
+	console.log("DEBUG 1 " + device.friendlyName + " Services=" + gattServices);
+	console.log("DEBUG 2 " + device.friendlyName + " gatts charas avaiable props=" + gattCharProps);
 }

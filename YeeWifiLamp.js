@@ -191,7 +191,7 @@ exports.YeeDevice = function (did, loc, model, power, bri,
 			params:[this.bright,(effect=="smooth"||effect=="sudden")?effect:"sudden",(durationVal && durationVal>30 && durationVal<2000)?durationVal:500]}
 		this.sendCmd(req);
     }.bind(this);
-    this.setctx = function (level,effect,duration,idn) {
+    this.setCTX = function (level,effect,duration,idn) {
 		var durationVal = parseInt(duration,10)
 		this.ctx = parseInt(level,10)
 		console.log("setCTX ctx="+level)
