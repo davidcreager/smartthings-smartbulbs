@@ -28,10 +28,10 @@ This release is much tidier, handles bluetooth and wifi bulbs.   Also, handles I
 **sudo chown smartbulbs:smartbulbs /home/smartbulbs/characteristics.json**
 ##### Use systemctl to have server start after startup
 **sudo systemctl daemon-reload**
-****sudo systemctl enable smartbulbserver-smartthings**
+****sudo systemctl enable smartbulbserver**
 ##### Start server and check status
-**sudo systemctl start smartbulbserver-smartthings**
-**sudo systemctl status yeelight-smartthings**
+**sudo systemctl start smartbulbserver**
+**sudo systemctl status smartbulbserver**
 
 ## Todo
 Polling vs subscribe behavior
