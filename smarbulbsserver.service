@@ -1,14 +1,14 @@
 [Unit]
-Description=node.js server to manage yeelight bulbs
+Description=node.js server to manage yeelight and miPow bulbs
 
 [Service]
-ExecStart=/var/opt/node/yeelight-smartthings/server.js
+ExecStart=/var/opt/node/smartthings-smartbulbs/smartbulbserver.js
 Restart=always
-User=yeelights
-Group=yeelights
+User=smartbulbs
+Group=smartbulbs
 Environment=PATH=/usr/bin:/usr/local/bin:/usr/sbin
 Environment=NODE_ENV=production
-WorkingDirectory=/home/yeelights/
+WorkingDirectory=/home/smartbulbs/
 
 [Install]
 WantedBy=multi-user.target
