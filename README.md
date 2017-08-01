@@ -1,3 +1,5 @@
+#Use tag V1.0 V2.0 not quite ready
+
 # yeelight-smartthings
 Provides a smartapp, device handler and node.js server to manage yeelight bulbs
 ## V0.0.1
