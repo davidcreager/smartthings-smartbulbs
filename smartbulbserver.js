@@ -87,7 +87,35 @@ var	smartBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn:"SmartBr
 var server = http.createServer(httpRequestHandler)
 server.listen(G_serverPort);
 servers[G_serverPort]=server;
-
+var G_deviceProperties = ( function() {
+	var fs = require("fs");
+	var fName = "deviceProperties.json";
+	var data = JSON.stringify({});
+	try {
+		data = fs.readFileSync(fName, "utf8");
+	} catch(err) {
+		if (err.code === 'ENOENT') {
+			console.log("smartbulbserver:G_DeviceProperties: File " + fName + " Not Found - Initialising");
+			try {
+				fs.writeFileSync(fName, data)
+			} catch (exc) {
+				console.log("smartbulbserver:G_DeviceProperties: File " + fName + " exception initialising error=" + exc);
+				return null;
+			}
+			console.log("smartbulbserver:G_DeviceProperties: File " + fName + " File has been created");
+		} else {
+			console.log("smartbulbserver:G_DeviceProperties: exception reading " + fName + " error=" + err);
+			return null;
+		}		
+	}
+	try {
+		return  JSON.parse(data);
+	} catch (exc) {
+		console.log("smartbulbserver:G_DeviceProperties: exception parsing json " + fName + " data=" + data + " exception=" + exc);
+		return null;
+	}
+})();
+console.log("smartbulbserver:G_DeviceProperties=" + JSON.stringify(G_deviceProperties));
 	
 var G_enabledTypes = ( function () {
 	var type;
