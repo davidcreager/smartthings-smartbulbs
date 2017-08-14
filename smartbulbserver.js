@@ -514,7 +514,12 @@ function httpRequestHandler(req,resp) {
 						
 						retObj = {"uniqueName": smartDevice.uniqueName, "method": "set_rgb", "stColor": stColorValue, "params": {"value": [rgb]}}
 						console.log("smartbulbserver:httpRequestHandler: change color pathname=" + url.pathname + " friendlyName=" + smartDevice.friendlyName + " uniqueName=" + smartDevice.uniqueName + 
-																								" mode=" + url.query.mode + " value=" + url.query.value);
+																									" mode=" + url.query.mode + " value=" + url.query.value);
+					} else if (url.pathname.includes("/ping")) {
+						done=true;
+						resp.writeHead(200, {"Content-Type": "application/json"});
+						resp.write(JSON.stringify({"uniqueName": smartDevice.uniqueName, "method": "pingresponse"}));
+						resp.end();
 					} else if (url.pathname.includes("/set_bright")) {
 						retObj = {"uniqueName": smartDevice.uniqueName, "method":"set_bright", "params": {"value": [url.query.value]}}
 						smartDevice.setBright(url.query.value, effect, duration, commandSeq);
