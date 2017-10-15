@@ -3,6 +3,8 @@
 							"YeeBTLamp" : {"enabled" : true, "agent" : "BluetoothAgent"}
 							,"YeeWifiLamp" : {"enabled" : true, "agent" : "YeeAgent"}
 							,"Playbulb" : {"enabled" : true, "agent" : "BluetoothAgent"}
+							,"MiLight" : {"enabled" : true, "agent" : "MiAgent"}
+							,"RFXDevice" : {"enabled" : true, "agent" : "RFXAgent"}
 							},
 	"ServerPort" : 8083,
 	"DevicePortStart" : 8201,
@@ -17,6 +19,18 @@
 		"Properties" : ["fw_ver","model"]
 		, "Configs" : {"pos": "off", "transition":"Sudden", "dcolor":"Previous", "custom" : "", "level" : 100, "transitionspeed" : 250, "autooff" : 0}
 		},
+	"MiLight" : {
+		"Properties" : ["fw_ver","model"]
+		, "ip" : "255.255.255.255"
+		, "delayBetweenCommands" : 80
+		, "commandRepeat" : 2
+	},
+	"RFXDevice" : {
+		"Properties" : ["fw_ver","model"]
+		, "ip" : "/dev/ttyUSB0"
+		, "delayBetweenCommands" : 80
+		, "commandRepeat" : 2
+	},
 	"YeeBTLamp" : {
 		"Properties" : ["fw_ver","model"]
 		, "Configs" : {"pos": "off", "transition":"Sudden", "dcolor":"Previous", "custom" : "", "level" : 100, "transitionspeed" : 250, "autooff" : 0}

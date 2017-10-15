@@ -164,11 +164,19 @@ var G_agents = (function () {
 					agents[tmpTypeDetails.agent] = new require("./YeeWifiAgent").YeeAgent(handleAgentEvents);
 					console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
 					agents[tmpTypeDetails.agent].discoverDevices();
+				} else if  (tmpTypeDetails.agent == "MiAgent")  {
+					agents[tmpTypeDetails.agent] = new require("./MiAgent").MiAgent(handleAgentEvents);
+					console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
+					agents[tmpTypeDetails.agent].discoverDevices();
 				} else if  (tmpTypeDetails.agent == "BluetoothAgent")  {
 					agents[tmpTypeDetails.agent] = new require("./BluetoothAgent").BluetoothAgent(handleAgentEvents);
 					console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
 					agents[tmpTypeDetails.agent].discoverDevices();
 					//playbulbAgent.discoverDevices.call(playbulbAgent)
+				} else if  (tmpTypeDetails.agent == "RFXAgent")  {
+					agents[tmpTypeDetails.agent] = new require("./RFXAgent").RFXAgent(handleAgentEvents);
+					console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
+					agents[tmpTypeDetails.agent].discoverDevices();
 				} else {
 					console.log("smartbulbserver: " + " Unsupported agent NOT working for " + type  + " agent is " + tmpTypeDetails.agent)
 				}
@@ -634,6 +642,8 @@ function httpRequestHandler(req,resp) {
 							if (smartDevice.smartType != "YeeWifiLamp") {
 								resp.write(JSON.stringify(retObj));
 								resp.end();
+								//console.log("smartbulbserver:httpRequestHandler: Response sent " + req.url + " uniqueName=" + retObj.uniqueName +
+								//				" method=" + retObj.method + " params.value=" + retObj.params.value);
 							} else {
 								responseStack[commandSeq] = resp;
 								responseObjectStack[commandSeq] = retObj;
