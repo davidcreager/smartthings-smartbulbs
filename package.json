@@ -21,6 +21,16 @@
     "noble": "^1.8.1",
     "node-milight-promise": "^0.2.32",
     "node-ssdp": "^3.2.1",
-    "uuid": "^3.0.1"
-  }
+    "uuid": "^3.0.1",
+    "rfxcom":""
+  },
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/davidcreager/smartthings-smartbulbs.git"
+  },
+  "bugs": {
+    "url": "https://github.com/davidcreager/smartthings-smartbulbs/issues"
+  },
+  "homepage": "https://github.com/davidcreager/smartthings-smartbulbs#readme"
 }
