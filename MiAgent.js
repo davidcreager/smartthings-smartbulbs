@@ -43,7 +43,6 @@ var MiDevice = function(inpData) {
 };
 
 exports.MiAgent = function(handler){
-    var zone = 2;
 	this.handler = handler;
 	this.devices = {};
 	this.bridges = {};
@@ -55,8 +54,15 @@ exports.MiAgent = function(handler){
 		var zones = [0];
 		var z;
 		var devName;
+		var macZones = require("./properties.json").MiLight.macZones
+		for (z=0;z<macZones.length;z++) {
+			if (macZones[z].mac==results.mac) {
+				zones = macZones[z].zones;
+				console.log("MiAgent:handleDiscoverMsg: Zones set in properties for " + results.mac + " zones =" + macZones[z].zones)
+			}
+		}
 		for (z=0;z<zones.length;z++) {
-			devName = "Milight" + "(" + results.mac + "[" + z + "]" + ")";
+			devName = "Milight" + "(" + results.mac + "[" + zones[z] + "]" + ")";
 			if (results.mac in this.bridges){
 				if (results.ip != this.bridges[results.mac].ip) {
 					console.log("MiAgent:handleDiscoverMsg: already in bridges with different IP " + results.mac +
@@ -79,7 +85,7 @@ exports.MiAgent = function(handler){
 							" ip=" + devices[devName].ip +
 							" Name=" + devices[devName].name +
 							" Type=" + devices[devName].type +
-							" Zone=" + z
+							" Zone=" + zones[z]
 							);
 			} else {
 				console.log("MiAgent:handleDiscoverMsg: Adding Device " + results.mac +
@@ -87,19 +93,18 @@ exports.MiAgent = function(handler){
 							" ip=" + results.ip +
 							" Name=" + results.name +
 							" Type=" + results.type +
-							" Zone=" + z
+							" Zone=" + zones[z]
 							);
-				//this.devices[devName] = {zone: z, light: this.bridges[results.mac]}
-				this.devices[devName] = new MiDevice({address: z, uniqueName: devName,
-													friendlyName: devName, dev: this.bridges[results.mac], zone: zone});
-				this.bridges[results.mac].sendCommands(Milight.commandsV6.rgbw.on(zone))
+				//this.devices[devName] = {zone: zones[z], light: this.bridges[results.mac]}
+				this.devices[devName] = new MiDevice({address: zones[z], uniqueName: devName,
+													friendlyName: devName, dev: this.bridges[results.mac], zone: zones[z]});
+				this.bridges[results.mac].sendCommands(Milight.commandsV6.rgbw.on(zones[z]))
 				//rgbw fullColor rgb
-				console.log("MiAgent:MiDevice: Sending On (rgbw) " + Milight.commandsV6.rgbw.on(zone) + " device=" + 
-									this.bridges[results.mac] + " ip=" + this.bridges[results.mac].ip + " zone=" + zone);
+				console.log("MiAgent:MiDevice: Sending On (rgbw) " + Milight.commandsV6.rgbw.on(zones[z]) + " device=" + 
+									this.bridges[results.mac] + " ip=" + this.bridges[results.mac].ip + " zone=" + zones[z]);
 				this.handler.onDevFound(this.devices[devName], "MiLight", devName, devName, this);
 				//address,uniqueName,friendlyName,rfxRFY
 			}
-
 		}
 	}.bind(this);
 	this.discoverDevices = function() {

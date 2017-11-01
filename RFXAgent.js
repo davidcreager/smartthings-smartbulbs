@@ -66,17 +66,25 @@ exports.RFXAgent = function(handler){
 							" unitCode=" + message[r].unitCode
 				);
 			devName = "Blind " + message[r].deviceId + "[" + message[r].unitCode + "]"
+			var friendlyName = devName;
+			var z;
+			for (z=0;z < require("./properties.json").RFXDevice.nameBlinds.length;z++){
+				if (require("./properties.json").RFXDevice.nameBlinds[z].uniqueName==devName) {
+					friendlyName = require("./properties.json").RFXDevice.nameBlinds[z].friendlyName
+					console.log("RFXAgent:handleDiscoverMsg: devName in properties " + devName + " mapped to " + friendlyName)
+				}
+			}
 			if (devName in this.devices) {
 				console.log("RFXAgent:handleDiscoverMsg: already in device list! " + devName);
 			} else {
-				console.log("RFXAgent:handleDiscoverMsg: Adding device " + devName);
-				//this.devices[devName] = new RFXDevice(devName,message[r].deviceId,message[r].unitCode,message[r].remoteType)
-				//this.devices[devName] = {addr: message[r].deviceId + "/" + message[r].unitCode, rfxDevice: this.rfy};
-				//address,uniqueName,friendlyName,rfxRFY
-				//this.devices[devName] = new RFXDevice({address:message[r].deviceId + "/" + message[r].unitCode,
-				this.devices[devName] = new RFXDevice({address: message[r].deviceId,
-														uniqueName: devName, friendlyName: devName, dev: this.rfy});
-				this.handler.onDevFound(this.devices[devName], "RFXDevice", devName, devName, this);
+				if (require("./properties.json").RFXDevice.ignoreBlinds.includes(devName)) {
+					console.log("RFXAgent:handleDiscoverMsg: Blind exists in properties ignoreBlinds - IGNORED - device " + devName);
+				} else {
+					console.log("RFXAgent:handleDiscoverMsg: Adding device " + devName);
+					this.devices[devName] = new RFXDevice({address: message[r].deviceId,
+														uniqueName: devName, friendlyName: friendlyName, dev: this.rfy});
+					this.handler.onDevFound(this.devices[devName], "RFXDevice", devName, devName, this);
+				}
 			}
 		}	
 	}.bind(this);
