@@ -228,10 +228,10 @@ def onLocation(evt) {
     	if (event.body) {
     		//log.debug("onLocation: body=" + event.body)
             def xmlCmd = parseXml(event.body.toString())
-            //log.debug("onLocation: parsed xmlCmd=" + xmlCmd)
+            //log.debug("onLocation: parsed xmlCmd=" + xmlCmd  + " command=" + xmlCmd?.command + " value=" + xmlCmd?.value + " device=" + xmlCmd?.device)
             def jsonCmd = parseJson(xmlCmd.toString())
             //log.debug("onLocation: parsed jsonCmd=" + jsonCmd)
-            log.debug("onLocation: json object command=" + jsonCmd.command + " value =" + jsonCmd.value)
+            log.debug("onLocation: json object command=" + jsonCmd.command + " value =" + jsonCmd.value + " device=" + jsonCmd.device)
 		} else {
         	log.debug("onLocation: body is blank")
         }
@@ -247,7 +247,7 @@ def onLocation(evt) {
                     )
         */
 
-	} else if (event.ip) {
+	} else if (event.ip && event.headers && event.headers.sid ) {
         	log.debug("onLocation:subscription: source=" + evt.eventSource + 
             		" index=" + event.index +
     				" IP address:port=" + convertHexToIP(event.ip) + ":" + convertHexToInt(event.port) +
@@ -304,6 +304,7 @@ void ssdpDiscover() {
 void ssdpSubscribe() {
 	subscribe(location, "ssdpTerm.urn:schemas-upnp-org:device:SmartBridge:1", ssdpHandler)
 	//log.debug "ssdpSubscribe: ssdpTerm.urn:schemas-upnp-org:device:   SmartBridge"
+    state.fst = false
 	if (state.supportedDevices) {
 		state.supportedDevices.each{
         //log.debug(" ssdpSubscribe subscribing to " + "ssdpTerm." + it.usn + " for " + it.type + "(s)")
@@ -354,9 +355,11 @@ def ssdpHandler(evt) {
     	//log.debug("ssdpHandler - DEBUG parsedEvent=" + parsedEvent)
         def devices = getDevices()
         def lightDeviceName = (parsedEvent.ssdpUSN?.indexOf("::urn") > 1) ? parsedEvent.ssdpUSN[0..(parsedEvent.ssdpUSN?.indexOf("::urn") - 1)] : "Bad Device Name"        
-        def dni = convertHexToIP(parsedEvent.networkAddress).toUpperCase() + convertHexToInt(parsedEvent.deviceAddress)
-		parsedEvent << ["hub":hub]
+        def dni = parsedEvent.networkAddress.toUpperCase() + parsedEvent.deviceAddress.toUpperCase()
+		parsedEvent << ["hub": hub]
+        parsedEvent << ["dni":dni]
         /*
+        log.debug("Setting parsedEvent.dni dni=" + dni + " parsedEvent.dni" + parsedEvent.dni + " pE.networkAddress=" + parsedEvent.networkAddress + " pE.deviceAddress=" + parsedEvent.deviceAddress)
         log.debug("ssdpHandler: We have a " + defDetails.type + " deviceType=" + defDetails.deviceType + " Name=" + lightDeviceName + 
         								" USN=" + parsedEvent?.ssdpUSN + " dni=" + dni + 
                                         " ip=" + getIPPort(parsedEvent.networkAddress,parsedEvent.deviceAddress) +
@@ -366,6 +369,12 @@ def ssdpHandler(evt) {
         if (devices."${lightDeviceName}") {
         	log.debug("ssdpHandler: device exists name=" + lightDeviceName + " dni=" + parsedEvent?.dni)
         	def d = devices."${lightDeviceName}"
+            
+            /* def alld = getChildDevices()
+            if (!state.fst) {
+            	state.fst = true
+           		alld.each{log.debug("Child devices " + convertHexToIP(it.deviceNetworkId) + " " + it.displayName + " getDeviceNetworkId=" + it.getDeviceNetworkId())}
+            } */
         	def child = getChildDevice(parsedEvent.dni)
 			def childIP
             def childPort
@@ -384,6 +393,8 @@ def ssdpHandler(evt) {
                     log.debug "ssdpHandler: Device data (${child.getDeviceDataByName("ip")}) does not match what it is reporting(${convertHexToIP(parsedEvent.networkAddress)}). Attempting to update."
                     child.sync(convertHexToIP(parsedEvent.networkAddress), convertHexToInt(parsedEvent.deviceAddress).toString())
                 }
+            } else {
+            	log.debug("ssdpHandler: Child does NOT exist name=" + lightDeviceName + " dni=" + parsedEvent?.dni)
             }
             if (d.networkAddress != parsedEvent.networkAddress || d.deviceAddress != parsedEvent.deviceAddress) {
             	log.debug("ssdpHandler: Ok this is weird, our device list has a different IP/port to the incoming for this name")
@@ -492,8 +503,9 @@ def addDevices() {
     	log.debug("addDevices: iterating devices: name=" + it?.key + " device=" + it?.value)
     }
     */
-    selectedDevices.each { dni ->bridgeLinking
-    	//log.debug("addDevices: iterating selectedDevices=" + dni)
+    //selectedDevices.each { dni ->bridgeLinking
+    //log.debug("addDevices: iterating selectedDevices=" + dni)
+    selectedDevices.each { dni ->
         def selectedDevice = devices.find { it.value.dni == dni }
         def d
         if (selectedDevice) {
@@ -595,25 +607,23 @@ public  Map getQueryMap( query)
 
 def doThis(childDevice,command,query) {
 	if (childDevice==null) {log.debug("doThis:childDevice is null")}
-	if (state.bridgeMac && state.bridgeIP && childDevice) {
+    if (state.bridgeMac && state.bridgeIP && childDevice) {
         def parsedQuery = [:]
         if (query) {parsedQuery=getQueryMap(query)}
         log.debug("doThis childDevice.uniqueName=" + childDevice.getDeviceDataByName("uniqueName") + " command=" + command + " parsedQuery=" + (parsedQuery?parsedQuery:"empty"))
         parsedQuery["uniqueName"] = childDevice.getDeviceDataByName("uniqueName")
-		sendHubCommand(new physicalgraph.device.HubAction([
-                method : "GET",
-                path   : "/HubAction" + command,
-                headers : ["HOST":state.bridgeIP+":"+state.bridgePort],
-                query	: parsedQuery
-            ],
-            state.bridgeMac,
-            [callback: "lightsHandler"]
-            ))    
+        sendHubCommand(new physicalgraph.device.HubAction(
+            	[	method : "GET",
+            		path   : "/HubAction" + command,
+            		headers : ["HOST":state.bridgeIP+":"+state.bridgePort],
+            		query	: parsedQuery ],
+				state.bridgeMac,
+            	[callback: "lightsHandler"]
+			))
         log.debug("doThis: Sent command to bridge path=" + "/HubAction" + command + " host=" + state.bridgeIP + ":" + state.bridgePort + " query=" + parsedQuery)
     } else {
-    	log.debug("doThis: ERROR CANNOT SEND command to bridge path=" + "/HubAction" + command + " host=" + state.bridgeIP + ":" + state.bridgePort + " query=" + parsedQuery)
+        log.debug("doThis: ERROR CANNOT SEND command to bridge path=" + "/HubAction" + command + " host=" + state.bridgeIP + ":" + state.bridgePort + " query=" + parsedQuery)
     }
-
     if (command.contains("refresh")) {
         def subscribePath = "/subscription"
         //def subscribeCallBack = "<http://" + location.hubs[0].localIP + ":" + location.hubs[0].localSrvPortTCP + "/notify/returnmessage"
@@ -669,6 +679,8 @@ void lightsHandler(physicalgraph.device.HubResponse hubResponse) {
                 childDevice.generateEvent([name: "level", value: resp?.params?.value[0] , displayed: false])
             } else if (resp?.method=="set_ctx") {
                 childDevice.generateEvent([name: "colorTemperature", value: resp?.params?.value[0] , displayed: false])
+            } else if (resp?.method=="pingresponse") {
+            	childDevice.generateEvent([name: "pingresponse", value: "pinged" , displayed: false])
             } else if (resp?.method=="refresh") {
     			//def jsonParams = slurper.parseText(resp.params)
                 childDevice.update_current_properties(resp?.params)

@@ -21,8 +21,11 @@
     "noble": "^1.8.1",
     "node-milight-promise": "^0.2.32",
     "node-ssdp": "^3.2.1",
-    "uuid": "^3.0.1",
-    "rfxcom":""
+    "request": "^2.83.0",
+    "rfxcom": "",
+    "tough-cookie": "^2.3.3",
+    "util": "^0.10.3",
+    "uuid": "^3.0.1"
   },
   "devDependencies": {},
   "repository": {

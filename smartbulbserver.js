@@ -172,7 +172,10 @@ var G_agents = (function () {
 					agents[tmpTypeDetails.agent] = new require("./BluetoothAgent").BluetoothAgent(handleAgentEvents);
 					console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
 					agents[tmpTypeDetails.agent].discoverDevices();
-					//playbulbAgent.discoverDevices.call(playbulbAgent)
+				} else if  (tmpTypeDetails.agent == "FindIphone")  {
+					agents[tmpTypeDetails.agent] = new require("./FindIphone").FindIphone(handleAgentEvents);
+					console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
+					agents[tmpTypeDetails.agent].discoverDevices();
 				} else if  (tmpTypeDetails.agent == "RFXAgent")  {
 					agents[tmpTypeDetails.agent] = new require("./RFXAgent").RFXAgent(handleAgentEvents);
 					console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
@@ -555,6 +558,14 @@ function httpRequestHandler(req,resp) {
 						done=true;
 						resp.writeHead(200, {"Content-Type": "application/json"});
 						resp.write(JSON.stringify({"uniqueName": smartDevice.uniqueName, "method": "pingresponse"}));
+						resp.end();
+					} else if (url.pathname.includes("/trigger")) {
+						//url.pathname.includes("/on") ? smartDevice.on() : smartDevice.off();
+						smartDevice.trigger();
+						console.log("smartbulbserver:httpRequestHandler: trigger url  pathname=" + url.pathname + " friendlyName=" + smartDevice.friendlyName + " uniqueName=" + smartDevice.uniqueName + " mode=" + url.query.mode + " value=" + url.query.value)
+						done=true;
+						resp.writeHead(200, {"Content-Type": "application/json"});
+						resp.write(JSON.stringify({"uniqueName": smartDevice.uniqueName, "method": "trigger"}));
 						resp.end();
 					} else if (url.pathname.includes("/set_bright")) {
 						retObj = {"uniqueName": smartDevice.uniqueName, "method":"set_bright", "params": {"value": [url.query.value]}}

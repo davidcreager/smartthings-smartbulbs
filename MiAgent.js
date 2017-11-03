@@ -98,10 +98,6 @@ exports.MiAgent = function(handler){
 				//this.devices[devName] = {zone: zones[z], light: this.bridges[results.mac]}
 				this.devices[devName] = new MiDevice({address: zones[z], uniqueName: devName,
 													friendlyName: devName, dev: this.bridges[results.mac], zone: zones[z]});
-				this.bridges[results.mac].sendCommands(Milight.commandsV6.rgbw.on(zones[z]))
-				//rgbw fullColor rgb
-				console.log("MiAgent:MiDevice: Sending On (rgbw) " + Milight.commandsV6.rgbw.on(zones[z]) + " device=" + 
-									this.bridges[results.mac] + " ip=" + this.bridges[results.mac].ip + " zone=" + zones[z]);
 				this.handler.onDevFound(this.devices[devName], "MiLight", devName, devName, this);
 				//address,uniqueName,friendlyName,rfxRFY
 			}

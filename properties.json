@@ -4,6 +4,7 @@
 							,"YeeWifiLamp" : {"enabled" : true, "agent" : "YeeAgent"}
 							,"Playbulb" : {"enabled" : true, "agent" : "BluetoothAgent"}
 							,"MiLight" : {"enabled" : true, "agent" : "MiAgent"}
+							,"iPhone" : {"enabled" : true, "agent" : "FindIphone"}
 							,"RFXDevice" : {"enabled" : true, "agent" : "RFXAgent"}
 							},
 	"ServerPort" : 8083,
@@ -18,6 +19,10 @@
 	"YeeWifiLamp" : {
 		"Properties" : ["fw_ver","model"]
 		, "Configs" : {"pos": "off", "transition":"Sudden", "dcolor":"Previous", "custom" : "", "level" : 100, "transitionspeed" : 250, "autooff" : 0}
+		},
+	"iPhone" : {
+		"Phones" : [{"smartName": "David's Phone", "name": "iPhone", "deviceDisplayName": "iPhone 7"}
+					,{"smartName": "Rosie's Phone", "name": "Rosie's Iphone", "deviceDisplayName": "iPhone 7"}]
 		},
 	"MiLight" : {
 		"Properties" : ["fw_ver","model"]
