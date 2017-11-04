@@ -1,6 +1,10 @@
 # smartbulbs-smartthings
 Provides a smartapp, device handler and node.js server to manage yeelight bulbs
+<<<<<<< HEAD
 ## V2
+=======
+## V3
+>>>>>>> cfe771435137ac77ce3df9d44e9fa6337b1408d5
 Second release.    
 Provides a smartapp, device handler and node.js server to manage yeelight and mipow bulbs.
 This release is much tidier, handles bluetooth and wifi bulbs.   Also, handles IP changes of the bulbs
@@ -11,17 +15,27 @@ This release is much tidier, handles bluetooth and wifi bulbs.   Also, handles I
 ##### Create Directory /var/opt/node **(if it doesn't exist)**
 **sudo mkdir /var/opt/node**
 ##### Create user and group to run the process
+<<<<<<< HEAD
 
+=======
+>>>>>>> cfe771435137ac77ce3df9d44e9fa6337b1408d5
 **sudo addgroup --system smartbulbs**
 
 **sudo adduser --system smartbulbs --ingroup smartbulbs**
 
+<<<<<<< HEAD
 **sudo usermod -a -G dialout smartbulbs**
+=======
+**sudo usermod -a -G dialout smartbulbs** (Add user to dialout permission for usb and rfxcom)
+>>>>>>> cfe771435137ac77ce3df9d44e9fa6337b1408d5
 
 **getent group smartbulbs** *Check group created*
 
 **id smartbulbs** *Check user created in the smartbulbs group*
+<<<<<<< HEAD
 
+=======
+>>>>>>> cfe771435137ac77ce3df9d44e9fa6337b1408d5
 ##### Download files from github
 **cd /var/opt/node**
 **sudo git clone https://github.com/davidcreager/smartthings-smartbulbs.git**
@@ -38,7 +52,10 @@ This release is much tidier, handles bluetooth and wifi bulbs.   Also, handles I
 **sudo chown smartbulbs:smartbulbs /home/smartbulbs/properties.json**
 
 **sudo chown smartbulbs:smartbulbs /home/smartbulbs/characteristics.json**
+<<<<<<< HEAD
 
+=======
+>>>>>>> cfe771435137ac77ce3df9d44e9fa6337b1408d5
 ##### Use systemctl to have server start after startup
 **sudo systemctl daemon-reload**
 ****sudo systemctl enable smartbulbserver**
