@@ -71,7 +71,7 @@ var icloud = {
 		icloud.iRequest.post(options, function(error, response, body) {
 
 			if (!response || response.statusCode != 200) {
-				return callback("Could not refresh session");
+				return callback("Could not refresh session " + response.statusCode);
 			}
 
 			icloud.onLogin(JSON.parse(body), function(err, resp, body) {
