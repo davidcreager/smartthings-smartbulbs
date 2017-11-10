@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 'use strict';
-//var yeeLight = require('./YeeWifiLamp.js');
 var COLORS=require("color-convert")
 var noble = require('noble');
 var http = require('http');
@@ -9,36 +8,26 @@ var ip=require("ip")
 var UUID = require('uuid/v1')
 var async=require("async")
 var SSDP = require('node-ssdp').Server
-//var NCONF=require('nconf');
 const querystring = require('querystring');
 var properties = require("./properties.json");
 const https = require('https');
-/*
-NCONF.argv()
-	.env()
-	.file({ file: './config.json' });
-console.log("smartbulbserver: is working for " + JSON.stringify(NCONF.get("bridge").workFor))
-var tmp="";
-process.argv.forEach((val, index) => {
-	tmp == "" ? tmp = index + ":" + val : tmp = tmp + "," + index + ":" + val
- 
-});
-console.log("smartbulbserver: input arguments are " + tmp)
-*/
- (function () {
+var gTEST = false;
+(function () {
 	var tmp="";
 	var enabledTypes = []
 	process.argv.forEach((val, index) => {
 		tmp == "" ? tmp = index + ":" + val : tmp = tmp + "," + index + ":" + val
 		if (index > 1) {
-			enabledTypes[index-2] = val;
+			if (val=="TEST") {
+				gTEST = true;
+			} else {
+				enabledTypes[index-2] = val;
+			}
 		}
 	});
 
 	//console.log("smartbulbserver: input arguments are " + tmp + " enabledtypes (overriding properties.json)=" + enabledTypes);
 })();
-
-var devicePortCounter = 8201
 var smartSubscribers = {};
 var subscriptionStack = [];
 var smartSSDs = {};
@@ -56,37 +45,10 @@ var smartSids = {};
 var sid = UUID();
 var eventCounter=1;
 var commandSeq = 1 + (Math.random() * 1e3) & 0xff;
-
-
-const G_oauthToken = {
-	  //"apiUrl": "https://graph-eu01-euwest1.api.smartthings.com:443",
-	  "apiUrl": "https://graph-eu01-euwest1.api.smartthings.com",
-	  "access_token": "f3aa010f-86ad-4a57-80dd-138ed9ec3f16", 
-	  "api": "https://graph.api.smartthings.com/api/smartapps/endpoints/e18fa88a-bd6b-455f-a0c4-4f2c0a94e302/", 
-	  "api_location": "graph.api.smartthings.com", 
-	  "path": "/api/smartapps/endpoints/e18fa88a-bd6b-455f-a0c4-4f2c0a94e302/",
-	  "client_id": "e18fa88a-bd6b-455f-a0c4-4f2c0a94e302", 
-	  "client_secret": "521c5979-2d93-45ed-98dc-37c74f1dc93b", 
-	  "expires_in": 1576799998, 
-	  "scope": "app", 
-	  "token_type": "bearer"
-	}
-	
-	
 const G_serverPort = properties.ServerPort
 var devicePortCounter = properties.DevicePortStart
 
-//var	smartBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn:"SmartBridge", suppressRootDeviceAdvertisements:true,
-var	smartBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn:"SmartBridge", 
-					location:"http://"+ ip.address() + ":" + G_serverPort + '/bridge'})
-	smartBridgeSSDP.addUSN('urn:schemas-upnp-org:device:SmartBridge:1')
-	smartBridgeSSDP.start();
-	console.log("smartbulbserver: Starting SSDP Annoucements for Bridge " + 
-			" location=" +  "http://"+ ip.address() + ":" + G_serverPort + '/bridge'
-			+ " usn=" + 'urn:schemas-upnp-org:device:SmartBridge:1');
-var server = http.createServer(httpRequestHandler)
-server.listen(G_serverPort);
-servers[G_serverPort]=server;
+
 var G_deviceProperties = ( function() {
 	var fs = require("fs");
 	var fName = "deviceProperties.json";
@@ -116,7 +78,9 @@ var G_deviceProperties = ( function() {
 	}
 })();
 console.log("smartbulbserver:G_DeviceProperties=" + JSON.stringify(G_deviceProperties));
-	
+var server = http.createServer(httpRequestHandler)
+server.listen(G_serverPort);
+servers[G_serverPort]=server;
 var G_enabledTypes = ( function () {
 	var type;
 	var tmp="";
@@ -128,25 +92,25 @@ var G_enabledTypes = ( function () {
 	process.argv.forEach((val, index) => {
 		tmp == "" ? tmp = index + ":" + val : tmp = tmp + "," + index + ":" + val
 		if (index > 1) {
-			//console.log("DEBUG val=" + val);
-			//enabledTypes[index-2] = val;
-			enabledTypes.push(val);
-			if (  (!properties.bridgeEnabledTypes[val]) ) {
-				console.log("\nINPUT ERROR - type does not exist should be " + stringOfPossibleTypes)
-				throw "invalid input argument";
+			if (val=="TEST") {
+				gTEST = true;
+				console.log("smartbulbserver: setting TEST MODE")
+			} else {
+				enabledTypes.push(val);
+				if (  (!properties.bridgeEnabledTypes[val]) ) {
+					console.log("\nINPUT ERROR - type does not exist should be " + stringOfPossibleTypes)
+					throw "invalid input argument";
+				}
 			}
 		}
 	});
 	if (enabledTypes.length==0) {
 		for (type in properties.bridgeEnabledTypes) {
-			//console.log("DEBUG enabledTypes type=" + type + " bridgeEnabledTypes[type]=" + JSON.stringify(properties.bridgeEnabledTypes[type]));
 			if (properties.bridgeEnabledTypes[type].enabled) {
 				enabledTypes.push(type);
 			}
 		}
-	} else {
-		//console.log("DEBUG enabledTypes not null");
-	}
+	} 
 	return enabledTypes;
 })();	
 
@@ -442,15 +406,13 @@ function httpRequestHandler(req,resp) {
 	//}
 	if (url.pathname == "/bridge") {
 		resp.writeHead(200, {"Content-Type": "text/xml"});
-		//resp, ssdpDeviceType, friendlyName, uniqueName, IP, port, modelInfo
-		//writeDeviceDescriptionResponse(resp, "SmartBridge", "SmartBridge", ip.address() , G_serverPort,  {} );
 		resp.write("<?xml version=\"1.0\"?> ");
-		resp.write("<root xmlns=\"urn:schemas-upnp-org:device:" + "SmartBridge" + ":1\">");
+		resp.write('<root xmlns="' + properties.ssdpUSN + '"\>');
 		resp.write("<device>");
-		resp.write("<deviceType>urn:schemas-upnp-org:device:" + "SmartBridge" + ":1</deviceType>");
-		resp.write("<friendlyName>" + "SmartBridge" + "</friendlyName>");
-		resp.write("<uniqueName>" + "SmartBridge" + "</uniqueName>");
-		resp.write("<UDN>" + "SmartBridge" + "</UDN>");
+		resp.write("<deviceType>" + properties.ssdpUSN + "</deviceType>");
+		resp.write("<friendlyName>" + properties.ssdpUDN + "</friendlyName>");
+		resp.write("<uniqueName>" + properties.ssdpUDN + "</uniqueName>");
+		resp.write("<UDN>" + properties.ssdpUDN + "</UDN>");
 		resp.write("<IP>" + ip.address() + "</IP>");
 		resp.write("<port>" + G_serverPort + "</port>");
 		var sDevices = [];
@@ -746,4 +708,5 @@ function debugHandles(device) {
 	}
 	console.log("DEBUG 1 " + device.friendlyName + " Services=" + gattServices);
 	console.log("DEBUG 2 " + device.friendlyName + " gatts charas avaiable props=" + gattCharProps);
+}
 }
