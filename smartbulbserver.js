@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 'use strict';
 var COLORS=require("color-convert")
-var noble = require('noble');
 var http = require('http');
 var URL = require('url');
 var ip=require("ip")
@@ -78,6 +77,33 @@ var G_deviceProperties = ( function() {
 	}
 })();
 console.log("smartbulbserver:G_DeviceProperties=" + JSON.stringify(G_deviceProperties));
+if (gTEST){
+	console.log("Trying to get ssdps")
+	var SSDPClient = require('node-ssdp').Client;
+	var client = new SSDPClient({ allowWildcards:false});
+    client.on('response', function (response) {
+		console.log("response st=" + response.ST + " location=" + response.LOCATION +" usn=" + response.USN )
+		});
+	client.on('notify', function () {
+	  console.log('Got a notification.')
+	})
+    // search for a service type
+    //client.search('urn:schemas-upnp-org:device:SmartBridge*');
+	//"urn:schemas-upnp-org:device:SmartBridge:1"
+	//client.search("schemas-upnp-org:device:SmartBridge:1");
+	//client.search('schemas-upnp-org:device:Smart*');
+	//client.search('urn:schemas-upnp-org:device:RFXDevice:1')
+	//urn:schemas-upnp-org:device
+	client.search('urn:schemas-upnp-org:device*')
+	//client.search('urn:');
+} else {
+var	smartBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn: properties.ssdpUDN, 
+					location:"http://"+ ip.address() + ":" + G_serverPort + '/bridge'})
+	smartBridgeSSDP.addUSN(properties.ssdpUSN)
+	smartBridgeSSDP.start();
+	console.log("smartbulbserver: Starting SSDP Annoucements for Bridge " + 
+			" location=" +  "http://"+ ip.address() + ":" + G_serverPort + '/bridge'
+			+ " usn=" + properties.ssdpUSN + " udn=" + properties.ssdpUDN);
 var server = http.createServer(httpRequestHandler)
 server.listen(G_serverPort);
 servers[G_serverPort]=server;
@@ -293,7 +319,6 @@ handleAgentEvents.onDevFound = function(device, type, name, uniqueName, agent) {
 			smartSids[device.uniqueName] = UUID();
 			smartDevices[device.uniqueName] = device;
 			devicePortCounter++;
-			//debugHandles(device);
 		} else {
 			//console.log("smartbulbserver:handleAgentEvents:onDevFound: Device already exists "+device.uniqueName)
 		}
@@ -677,36 +702,4 @@ function encodeXml(s) {
         .replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/\t/g, '&#x9;').replace(/\n/g, '&#xA;').replace(/\r/g, '&#xD;')
     );
-}
-function debugHandles(device) {
-	console.log("DEBUG 0 " + device.friendlyName + " periph=" + device.periph._noble.state +
-			" " + device.periph._noble.address +
-			" binding state=" + device.periph._noble._bindings._state +
-			" handles=" + JSON.stringify(device.periph._noble._bindings._handles[device.periph.uuid])
-			);
-	var binds = device.periph._noble._bindings;
-	var handle = binds._handles[device.periph.uuid]
-	var gattServices = "";
-	var gattCharProps = "";
-	var gattCharacteristics = binds._gatts[64]._characteristics //this is an array of arrays by serviceUUID
-	for (let tmp in device.periph.services) {
-		gattServices = (gattServices=="" ? "[" + tmp + "]=" + device.periph.services[tmp].uuid : gattServices + ", " + 
-			"[" + tmp + "]=" + device.periph.services[tmp].uuid )
-	}
-	var charas = binds._gatts[64]["_characteristics"];
-	for (let tmp in charas ) {
-		for (let i0 in charas[tmp]) {
-			console.log("Gatt Characteristic dump for :" + "[" + tmp + "]" + "[" + i0 + "]" + 
-					" valueHandle=" + charas[tmp][i0].valueHandle + " 0x" + 
-					charas[tmp][i0].valueHandle.toString(16));
-					for (let i1 in charas[tmp][i0]) {
-						if (gattCharProps.indexOf(i1)==-1) {
-								gattCharProps = ( gattCharProps=="" ? i1 : gattCharProps + ", " + i1);
-						}
-					}
-		}
-	}
-	console.log("DEBUG 1 " + device.friendlyName + " Services=" + gattServices);
-	console.log("DEBUG 2 " + device.friendlyName + " gatts charas avaiable props=" + gattCharProps);
-}
 }
