@@ -62,10 +62,6 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, 
 	this.green = 255;
 	this.blue = 255;
 	this.retry_cnt = 0;
-	this.periph.on("disconnect", function(){
-		console.log("disconnected " + peripheral.advertisement.localName);
-		that.reconnect();
-	}.bind(this));
 
 	this.processCharacteristic = function(characteristic) {
 		var charTable = require("./characteristics.json")
@@ -85,7 +81,7 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, 
 			chrType = (lookedUpName.indexOf("pnp_id") != -1) ? "hex" : chrType
 			if (this.characteristicsByName[lookedUpName]) {
 				if ((this.characteristicsByName[lookedUpName]!=characteristic) && mipow) {
-					console.log("DEBUG weirdness characteristic already set pbulb=" + this.uniqueName + " name=" + lookedUpName + 
+					console.log("Playbulb:processCharacteristic: DEBUG weirdness characteristic already set pbulb=" + this.uniqueName + " name=" + lookedUpName + 
 								//" array=" + retProps(characteristic))
 								" array uuid=" + this.characteristicsByName[lookedUpName]._peripheralId +
 								" incoming.uuid=" + characteristic._peripheralId)
@@ -95,12 +91,10 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, 
 			characteristic.read(function(error,data){
 				var attData;
 				if (error) {
-					console.log("Reading Characteristic: " + peripheral.advertisement.localName + " data error " + error )
+					console.log("Playbulb:processCharacteristic: Reading Characteristic: " + peripheral.advertisement.localName + " data error " + error )
 				} else {
 					attData = (chrType == "uint8") ? attData = data.readUInt8(0) : attData = data.toString();
 					attData = (chrType == "hex") ? attData = bytesToHex(data) : attData = attData;
-					//console.log("found for " + this.playbulbName + " " + characteristic.uuid + " characterist.name=" + characteristic.name + 
-					//		" lookedUpName=" + lookedUpName + " data=" + attData );
 				}
 			});
 			var chr;
@@ -116,66 +110,7 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, 
 				this.cbHandler.onDevFound(this, "Playbulb", this.periph.advertisement.localName, this.uniqueName, this.BTAgent);
 			}
 		} else {
-			//console.log("processCharacteristic looked up Name not found " + "0x" + characteristic.uuid )
-		}
-	}.bind(this);
-	this.reconnect = function () {
-		console.log("retry connect (" + that.retry_cnt + ") ...: " + that.periph.advertisement.localName);	
-		that.retry_cnt = that.retry_cnt + 1;
-		if (that.retry_cnt > 9) return;
-		that.connect(function(error,retval){
-						if (error) {
-							console.log("reconnecting error " + error + " " + that.friendlyName);
-							setTimeout(that.reconnect,2000);
-						} else {
-							console.log("reconnecting ok " + that.periph.advertisement.localName + " state=" + that.periph.state);
-							that.periph.discoverAllServicesAndCharacteristics();
-							that.periph.on('servicesDiscover', function (services) {
-								//console.log("BluetoothManager: " + btBulb.periph.advertisement.localName + " uuid=" + btBulb.periph.uuid + " Services Discovered")
-								services.map(function (service) {
-									service.on('characteristicsDiscover', function (characteristics) {
-										characteristics.map(function (characteristic) {
-											that.processCharacteristic(characteristic);
-										});
-									});
-								});
-							});
-						}
-		});
-	}
-	this.connect = function (cb) {
-		if (this.periph) {
-			if (this.periph.state === "connected") {
-				cb(null,"connected")
-			} else {
-				this.periph.connect( function(error){
-					if (error) {
-						cb(error,null);
-					} else {
-						cb(null,"connected");
-					}
-				});
-			}
-			
-		} else {
-			cb("Peripheral is null")
-		}		
-	}.bind(this);
-	this.disconnect = function(cb) {
-		if (this.periph) {
-			if (this.periph.state != "connected") {
-				cb(null,"disconnected" + this.periph.state)
-			} else {
-				this.periph.disconnect( function(error){
-					if (error) {
-						cb(error,null);
-					} else {
-						cb(null,"disconnected");
-					}
-				});
-			}
-		} else {
-			cb("Peripheral is null")
+			//console.log("Playbulb:processCharacteristic looked up Name not found " + "0x" + characteristic.uuid )
 		}
 	}.bind(this);
     this.isReady = function (callback) {
@@ -204,14 +139,6 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, 
 			}
 		}
 	}.bind(this);
-    var decimalToHexBytes = function (speed, max) {
-        var speedRanged = speed * max;
-        var speedHex = speedRanged.toString(16);
-        while (speedHex.length < 4) {
-            speedHex = "0" + speedHex;
-        }
-        return [parseInt(speedHex.substring(0, 2), 16), parseInt(speedHex.substring(2, 4), 16)];
-    };
 	this.getAttribute = function(attr,type="",callback) {
 		var attrDetails=null;
 		if (this.characteristicsByName[attr]) {
@@ -242,6 +169,14 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, 
 		};
 	}.bind(this);
     this.runEffect = function (saturation, r, g, b, effect, speed) {
+		var decimalToHexBytes = function (speed, max) {
+			//var speedRanged = speed * max;
+			var speedHex = (speed * max).toString(16);
+			while (speedHex.length < 4) {
+				speedHex = "0" + speedHex;
+			}
+			return [parseInt(speedHex.substring(0, 2), 16), parseInt(speedHex.substring(2, 4), 16)];
+		};
 		//abyss var that=this;
         if (!this.isReady) {
             throw "playbulb not ready";

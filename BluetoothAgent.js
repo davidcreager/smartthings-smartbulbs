@@ -9,7 +9,7 @@ exports.BluetoothAgent = function (handler) {
 	this.noble = require('noble');
 	this.smartType = "Bluetooth";
 	this.btDevices = [];
-	this.peripheralPairingStates = {};
+	this.peripheralStates = {};
 	this.peripherals = {};
 	this.cbHandler = handler;
 	this.powerState = "startUp"
@@ -20,53 +20,55 @@ exports.BluetoothAgent = function (handler) {
 	var unknownDevices = {}
 	this.discoverDevices= function(){
 		//console.log("BluetoothAgent: discovering")
+		var scanNow = true;
+		var uuid;
 		that.discoveryInProgress = true;
-		if (that.startScanningTimer) {
-			that.startScanningTimer = null;
-			clearTimeout(that.startScanningTimer)
+		for (uuid in this.peripheralStates) {
+			if (this.peripheralStates[uuid]=="connecting") {scanNow=false}
 		}
-		if ( (that.powerState=="poweredOn") && (that.scanState=="off") ) {
-			//console.log("BluetoothAgent: discoverDevices - Scanning")
-			that.noble.startScanning([],false);
+		if (scanNow) {
+			if (that.startScanningTimer) {
+				that.startScanningTimer = null;
+				clearTimeout(that.startScanningTimer)
+			}
+			if ( (that.powerState=="poweredOn") && (that.scanState=="off") ) {
+				//console.log("BluetoothAgent: discoverDevices - Scanning")
+				that.noble.startScanning([],false);
+			} else {
+				that.startScanningTimer = (that.powerState != "poweredOn" ? 2000 : 10000)
+				that.startScanningTimer = setTimeout(that.discoverDevices, that.startScanningTimer );
+			}
 		} else {
-			that.startScanningTimer = (that.powerState != "poweredOn" ? 2000 : 10000)
-			that.startScanningTimer = setTimeout(that.discoverDevices, that.startScanningTimer );
+				console.log("BluetoothAgent:discoverDevices: Not scanning as devices are still connecting waiting 10sec ")
+				that.startScanningTimer = setTimeout(that.discoverDevices, 10000);
 		}
 		//console.log("Discover ends")		
 	}.bind(this)
-	this.reconnect = function(peripheral, cb){
-		this.connectDevice(peripheral, function(error, pbBulb){
-			if (error) {
-				console.log("BluetoothAgent:reconnecting error " + error);
-				if (cb) {
-					cb(error, null);
-				};
-			} else {
-				pbBulb.periph.discoverAllServicesAndCharacteristics();
-				pbBulb.periph.on('servicesDiscover', function (services) {
-					services.map(function (service) {
-						service.on('characteristicsDiscover', function (characteristics) {
-							characteristics.map(function (characteristic) {
-								pbBulb.processCharacteristic(characteristic);
-							});
-						});
-					});
-				});		
-				if (cb) {
-					cb(null,periperhal);
-				};
-			}
-		});
-	}.bind(this);
+	this.handleDisconnect = function(peripheral) {
+		peripheral = this;
+		that.peripheralStates[peripheral.uuid] = "disconnected";
+		console.log("BluetoothAgent:handleDisconnect Device disconnected " + peripheral.advertisement.localName);
+	}
+	this.handleConnect = function(peripheral) {
+		peripheral = this;
+		that.peripheralStates[peripheral.uuid] = "connected";
+		console.log("BluetoothAgent:handleConnect Device connected " + peripheral.advertisement.localName);
+	}
+	this.handleNotify = function(peripheral) {
+		peripheral = this;
+		that.peripheralStates[peripheral.uuid] = "state";
+		console.log("BluetoothAgent:handleDisconnect Device Notified " + peripheral.advertisement.localName);
+	}
 	this.connectDevice = function(peripheral,cb) {
 		var pbPrefix;
-		this.connectPeripheral(peripheral, function (error,btBulb) {
-			if (error) {
+		var btBulb;
+		peripheral.connect( function (error) {
+			if (peripheral.state != "connected") {
+				if (!error) { error = "Unknown Error" }
 				console.log("BluetoothAgent:connectDevice " + peripheral.advertisement.localName + " error connecting " + error);
 				cb(error,null)
 				return;
-			}
-			if (peripheral.state == "connected") {		
+			} else {
 				btBulb = that.findDevice(peripheral.advertisement.localName,false)
 				if (!btBulb) {
 					var pbType = null;
@@ -85,56 +87,22 @@ exports.BluetoothAgent = function (handler) {
 				} else {
 					console.log("BluetoothAgent:connectDevice " + peripheral.advertisement.localName + " already in devices array")
 				}
-			} else {
-				console.log("BluetoothAgent:connectDevice " + peripheral.advertisement.localName + " device cant connect, do not know why")
-				throw " device cant connect, do not know why";
-				cb(" device cant connect, do not know why",null)
 			}
 		});
 	}.bind(this);
-	this.connectPeripheral = function(peripheral, cb) {
-		this.scanStop( function(error,discoverInProgress) {
-			if (peripheral.state=="connected") {
-				cb(null, peripheral);
-				if (discoverInProgress) {
-					this.startScanningTimer =  setTimeout(this.discoverDevices,5000);
-				};
-			} else {
-				peripheral.connect( function (error,btBulb) {
-					if (error) {
-						if (peripheral.state != "connected") {
-							console.log("BluetoothAgent: " + peripheral.advertisement.localName + " device cant connect state=" + peripheral.state)
-							throw error;
-							cb(error, null);
-						}
-					}
-					cb(null, peripheral);
-					if (discoverInProgress) {
-						that.startScanningTimer =  setTimeout(that.discoverDevices,5000);
-					};
-				});
-			};
-		});
-	}.bind(this);
 	this.scanStop = function(cb) {
-		//var savedDiscoveryInProgress=this.discoveryInProgress;
-		//this.discoveryInProgress = false;
 		if (this.stopScanningTimer) {
+			clearTimeout(this.stopScanningTimer);
 			this.stopScanningTimer = null;
-			clearTimeout(this.stopScanningTimer)
-		} // NOT SURE THIS IS NEEDED
-		if (this.startScanningTimer) {
-			this.startScanningTimer = null;
-			clearTimeout(this.startScanningTimer)
 		}
 		if (this.scanState=="off") {
 			if (cb) {
-				cb(null, this.discoveryInProgress);
+				cb(null);
 			};
 		} else {
 			this.noble.stopScanning(function(){
 				if (cb) {
-					cb(null,this.discoveryInProgress);
+					cb(null);
 				};
 			});
 		}
@@ -213,22 +181,15 @@ exports.BluetoothAgent = function (handler) {
 	};
 	this.noble.on('discover', function (peripheral) {
 		var parsedPrefix = this.getDeviceType(peripheral.advertisement.localName)
-		//console.log("BluetoothAgent:onNoble: name=" + peripheral.advertisement.localName + " pbType=" + parsedPrefix.pbType + " ManagerTypes =" + tmp0 + " prefixTypes=" + tmp);
 		if (parsedPrefix.valid) {
 			console.log("BluetoothAgent:onNoble: Valid BT Device found " + peripheral.advertisement.localName + " pbType=" + parsedPrefix.pbType )
-			//console.log("BluetoothAgent:onNoble: name=" + peripheral.advertisement.localName + " pbType=" + parsedPrefix.pbType + " ManagerTypes =" + tmp0 + " prefixTypes=" + tmp);
 			if (!that.peripherals[peripheral.uuid]) {
 				that.peripherals[peripheral.uuid] = peripheral;
-				if (that.stopScanningTimer) {
-					that.stopScanningTimer = null;
-					clearTimeout(that.stopScanningTimer)
-				}
-				//console.log("BluetoothAgent: on discover: DEBUG scheduling end to scanning in 3 seconds");
+				that.peripheralStates[peripheral.uuid] = "created";
+				that.peripherals[peripheral.uuid].on('disconnect',that.handleDisconnect);
+				that.peripherals[peripheral.uuid].on('connect',that.handleConnect);
+				that.peripherals[peripheral.uuid].on('notify',that.handleNotify);
 				that.stopScanningTimer = setTimeout(that.scanStop,3000);
-				/* that.stopScanningTimer = setTimeout(function() {
-							that.noble.stopScanning();
-						}
-						, 3000) */ 	// Stop scanning 5000  - reset when peripheral found
 			}
 		} else {
 			if (! unknownDevices[peripheral.id] )
@@ -253,13 +214,10 @@ exports.BluetoothAgent = function (handler) {
 	this.handleScanStop = function(message) {
 		console.log("BluetoothAgent: Scan stops ")
 		that.scanState = "off"
-		//var savedDiscoveryInProgress = that.discoveryInProgress;
-		//that.discoveryInProgress = false;
 		var uuid;
 		for (uuid in that.peripherals) {
-			//console.log("Process for " + that.peripherals[uuid].advertisement.localName + " id=" + that.peripherals[uuid].id + " index=" + uuid)
 			if ( (that.peripherals[uuid]) && (that.peripherals[uuid].state != "connected") && (that.peripherals[uuid].state != "connecting") ){
-				//console.log("calling connect device for " + that.peripherals[uuid].advertisement.localName + " id=" + " index=" + uuid)
+				that.peripheralStates[uuid] = "connecting";
 				that.connectDevice(that.peripherals[uuid], function(error, pbBulb){
 					if (error) {
 						console.log("error connecting to device " + error + " for " + that.peripherals[uuid].advertisement.localName )
@@ -270,6 +228,7 @@ exports.BluetoothAgent = function (handler) {
 							services.map(function (service) {
 								service.on('characteristicsDiscover', function (characteristics) {
 									characteristics.map(function (characteristic) {
+										//console.log("BluetoothAgent:handleScanStop: calling process characteristic  " + that.peripherals[uuid])
 										pbBulb.processCharacteristic(characteristic);
 									});
 								});
@@ -284,12 +243,7 @@ exports.BluetoothAgent = function (handler) {
 				console.log("Weird error peripheral state is not correct for " + that.peripherals[uuid].id + " state=" + that.peripherals[uuid].state )
 			}
 		}
-		//that.discoveryInProgress = savedDiscoveryInProgress;
-		//if ( (!that.startScanningTimer) && (savedDiscoveryInProgress) ) { 
-		/*
-		if (!that.startScanningTimer) { 
-			that.startScanningTimer =  setTimeout(that.discoverDevices,5000);
-		}*/
+		that.startScanningTimer = setTimeout(that.discoverDevices, 10000);
 	}.bind(this);
 	this.noble.on('stateChange',this.handleStateChange);
 	this.noble.on('scanStop',this.handleScanStop );
