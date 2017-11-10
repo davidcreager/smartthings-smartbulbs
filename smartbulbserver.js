@@ -97,90 +97,90 @@ if (gTEST){
 	client.search('urn:schemas-upnp-org:device*')
 	//client.search('urn:');
 } else {
-var	smartBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn: properties.ssdpUDN, 
-					location:"http://"+ ip.address() + ":" + G_serverPort + '/bridge'})
-	smartBridgeSSDP.addUSN(properties.ssdpUSN)
-	smartBridgeSSDP.start();
-	console.log("smartbulbserver: Starting SSDP Annoucements for Bridge " + 
-			" location=" +  "http://"+ ip.address() + ":" + G_serverPort + '/bridge'
-			+ " usn=" + properties.ssdpUSN + " udn=" + properties.ssdpUDN);
-var server = http.createServer(httpRequestHandler)
-server.listen(G_serverPort);
-servers[G_serverPort]=server;
-var G_enabledTypes = ( function () {
-	var type;
-	var tmp="";
-	var enabledTypes = []
-	var stringOfPossibleTypes="";
-	for (let i0 in properties.bridgeEnabledTypes) {
-		stringOfPossibleTypes = (stringOfPossibleTypes=="" ? i0 : stringOfPossibleTypes + " or " + i0)
-	}
-	process.argv.forEach((val, index) => {
-		tmp == "" ? tmp = index + ":" + val : tmp = tmp + "," + index + ":" + val
-		if (index > 1) {
-			if (val=="TEST") {
-				gTEST = true;
-				console.log("smartbulbserver: setting TEST MODE")
-			} else {
-				enabledTypes.push(val);
-				if (  (!properties.bridgeEnabledTypes[val]) ) {
-					console.log("\nINPUT ERROR - type does not exist should be " + stringOfPossibleTypes)
-					throw "invalid input argument";
-				}
-			}
+	var	smartBridgeSSDP = new SSDP({allowWildcards:true,sourcePort:1900,udn: properties.ssdpUDN, 
+						location:"http://"+ ip.address() + ":" + G_serverPort + '/bridge'})
+		smartBridgeSSDP.addUSN(properties.ssdpUSN)
+		smartBridgeSSDP.start();
+		console.log("smartbulbserver: Starting SSDP Annoucements for Bridge " + 
+				" location=" +  "http://"+ ip.address() + ":" + G_serverPort + '/bridge'
+				+ " usn=" + properties.ssdpUSN + " udn=" + properties.ssdpUDN);
+	var server = http.createServer(httpRequestHandler)
+	server.listen(G_serverPort);
+	servers[G_serverPort]=server;
+	var G_enabledTypes = ( function () {
+		var type;
+		var tmp="";
+		var enabledTypes = []
+		var stringOfPossibleTypes="";
+		for (let i0 in properties.bridgeEnabledTypes) {
+			stringOfPossibleTypes = (stringOfPossibleTypes=="" ? i0 : stringOfPossibleTypes + " or " + i0)
 		}
-	});
-	if (enabledTypes.length==0) {
-		for (type in properties.bridgeEnabledTypes) {
-			if (properties.bridgeEnabledTypes[type].enabled) {
-				enabledTypes.push(type);
-			}
-		}
-	} 
-	return enabledTypes;
-})();	
-
-var G_agents = (function () {
-	var type;
-	var tmpTypeDetails;
-	var agents = {};
-	for (type in properties.bridgeEnabledTypes) {
-		tmpTypeDetails = properties.bridgeEnabledTypes[type];
-		if ( G_enabledTypes.includes(type) )  {
-			if (agents[tmpTypeDetails.agent]) {
-				console.log("smartbulbserver: " + "Working for " + type  + " agent is " + tmpTypeDetails.agent + " already running")
-			} else {
-				if (tmpTypeDetails.agent == "YeeAgent") {
-					agents[tmpTypeDetails.agent] = new require("./YeeWifiAgent").YeeAgent(handleAgentEvents);
-					console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
-					agents[tmpTypeDetails.agent].discoverDevices();
-				} else if  (tmpTypeDetails.agent == "MiAgent")  {
-					agents[tmpTypeDetails.agent] = new require("./MiAgent").MiAgent(handleAgentEvents);
-					console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
-					agents[tmpTypeDetails.agent].discoverDevices();
-				} else if  (tmpTypeDetails.agent == "BluetoothAgent")  {
-					agents[tmpTypeDetails.agent] = new require("./BluetoothAgent").BluetoothAgent(handleAgentEvents);
-					console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
-					agents[tmpTypeDetails.agent].discoverDevices();
-				} else if  (tmpTypeDetails.agent == "FindIphone")  {
-					agents[tmpTypeDetails.agent] = new require("./FindIphone").FindIphone(handleAgentEvents);
-					console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
-					agents[tmpTypeDetails.agent].discoverDevices();
-				} else if  (tmpTypeDetails.agent == "RFXAgent")  {
-					agents[tmpTypeDetails.agent] = new require("./RFXAgent").RFXAgent(handleAgentEvents);
-					console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
-					agents[tmpTypeDetails.agent].discoverDevices();
+		process.argv.forEach((val, index) => {
+			tmp == "" ? tmp = index + ":" + val : tmp = tmp + "," + index + ":" + val
+			if (index > 1) {
+				if (val=="TEST") {
+					gTEST = true;
+					console.log("smartbulbserver: setting TEST MODE")
 				} else {
-					console.log("smartbulbserver: " + " Unsupported agent NOT working for " + type  + " agent is " + tmpTypeDetails.agent)
+					enabledTypes.push(val);
+					if (  (!properties.bridgeEnabledTypes[val]) ) {
+						console.log("\nINPUT ERROR - type does not exist should be " + stringOfPossibleTypes)
+						throw "invalid input argument";
+					}
 				}
 			}
-		} else {
-			console.log("smartbulbserver: " + "NOT working for " + type  + " agent is " + tmpTypeDetails.agent)
-		}
-	}
-	return agents;
-})();
+		});
+		if (enabledTypes.length==0) {
+			for (type in properties.bridgeEnabledTypes) {
+				if (properties.bridgeEnabledTypes[type].enabled) {
+					enabledTypes.push(type);
+				}
+			}
+		} 
+		return enabledTypes;
+	})();	
 
+	var G_agents = (function () {
+		var type;
+		var tmpTypeDetails;
+		var agents = {};
+		for (type in properties.bridgeEnabledTypes) {
+			tmpTypeDetails = properties.bridgeEnabledTypes[type];
+			if ( G_enabledTypes.includes(type) )  {
+				if (agents[tmpTypeDetails.agent]) {
+					console.log("smartbulbserver: " + "Working for " + type  + " agent is " + tmpTypeDetails.agent + " already running")
+				} else {
+					if (tmpTypeDetails.agent == "YeeAgent") {
+						agents[tmpTypeDetails.agent] = new require("./YeeWifiAgent").YeeAgent(handleAgentEvents);
+						console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
+						agents[tmpTypeDetails.agent].discoverDevices();
+					} else if  (tmpTypeDetails.agent == "MiAgent")  {
+						agents[tmpTypeDetails.agent] = new require("./MiAgent").MiAgent(handleAgentEvents);
+						console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
+						agents[tmpTypeDetails.agent].discoverDevices();
+					} else if  (tmpTypeDetails.agent == "BluetoothAgent")  {
+						agents[tmpTypeDetails.agent] = new require("./BluetoothAgent").BluetoothAgent(handleAgentEvents);
+						console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
+						agents[tmpTypeDetails.agent].discoverDevices();
+					} else if  (tmpTypeDetails.agent == "FindIphone")  {
+						agents[tmpTypeDetails.agent] = new require("./FindIphone").FindIphone(handleAgentEvents);
+						console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
+						agents[tmpTypeDetails.agent].discoverDevices();
+					} else if  (tmpTypeDetails.agent == "RFXAgent")  {
+						agents[tmpTypeDetails.agent] = new require("./RFXAgent").RFXAgent(handleAgentEvents);
+						console.log("smartbulbserver: " + "Working for " + type  + " agent started " + tmpTypeDetails.agent );
+						agents[tmpTypeDetails.agent].discoverDevices();
+					} else {
+						console.log("smartbulbserver: " + " Unsupported agent NOT working for " + type  + " agent is " + tmpTypeDetails.agent)
+					}
+				}
+			} else {
+				console.log("smartbulbserver: " + "NOT working for " + type  + " agent is " + tmpTypeDetails.agent)
+			}
+		}
+		return agents;
+	})();
+}
 handleAgentEvents.BTDisconnect = function(peripheral, device) {
 		console.log("smartbulbserver: Disconnect received for " + device.friendlyName + " peripheral name=" + peripheral.advertisement.localName);
 		/*
@@ -673,6 +673,7 @@ function httpRequestHandler(req,resp) {
 //console.log("smartbulbserver:httpRequestHandler: deviceMac not in smartMacs array deviceMac=" + deviceMac);
 	}
 }
+
 function retProps(obj,onlyNames = false){
 	var props=""
 	if (obj) {
@@ -702,5 +703,4 @@ function encodeXml(s) {
         .replace(/</g, '&lt;').replace(/>/g, '&gt;')
         .replace(/\t/g, '&#x9;').replace(/\n/g, '&#xA;').replace(/\r/g, '&#xD;')
     );
-}
 }
