@@ -140,16 +140,36 @@ exports.BluetoothAgent = function (handler) {
 		return obj;
 	}.bind(this);
 	this.getDeviceType = function(peripheralName) {
-		 var enabledTypes = (function () {
+		var enabledTypes = ( function () {
+			var type;
 			var tmp="";
 			var enabledTypes = []
+			var stringOfPossibleTypes="";
+			for (let i0 in properties.bridgeEnabledTypes) {
+				stringOfPossibleTypes = (stringOfPossibleTypes=="" ? i0 : stringOfPossibleTypes + " or " + i0)
+			}
 			process.argv.forEach((val, index) => {
 				tmp == "" ? tmp = index + ":" + val : tmp = tmp + "," + index + ":" + val
 				if (index > 1) {
-					enabledTypes[index-2] = val;
+					if (val=="TEST") {
+						gTEST = true;
+						console.log("smartbulbserver: setting TEST MODE")
+					} else {
+						enabledTypes.push(val);
+						if (  (!properties.bridgeEnabledTypes[val]) ) {
+							console.log("\nINPUT ERROR - type does not exist should be " + stringOfPossibleTypes)
+							throw "invalid input argument";
+						}
+					}
 				}
 			});
-			//console.log("bluetoothAgent: input arguments are " + tmp + " enabledtypes (overriding properties.json)=" + enabledTypes);
+			if (enabledTypes.length==0) {
+				for (type in properties.bridgeEnabledTypes) {
+					if (properties.bridgeEnabledTypes[type].enabled) {
+						enabledTypes.push(type);
+					}
+				}
+			} 
 			return enabledTypes;
 		})();
 		var pbPrefix;
@@ -168,9 +188,10 @@ exports.BluetoothAgent = function (handler) {
 						if ( (enabledTypes.length!=0) && (enabledTypes.includes(managerType)) ) {
 							valid = true;
 						} else if (enabledTypes.length==0) {
-							valid = properties[managerType].AdvertismentPrefixTypes[pbPrefix]
+							valid = properties[managerType].AdvertismentPrefixTypes[pbPrefix];
+							console.log("BluetoothAgent:getDeviceType:ERROR ERROR WEIRDNESS");
 						} else {
-							valid = false
+							valid = false;
 						}
 					}
 				}
