@@ -703,3 +703,4 @@ function encodeXml(s) {
         .replace(/\t/g, '&#x9;').replace(/\n/g, '&#xA;').replace(/\r/g, '&#xD;')
     );
 }
+}
