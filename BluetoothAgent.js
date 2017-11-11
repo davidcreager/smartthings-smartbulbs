@@ -267,7 +267,9 @@ exports.BluetoothAgent = function (handler) {
 					}
 				});
 			}	else {
-				console.log("Weird error peripheral state is not correct for " + that.peripherals[uuid].id + " state=" + that.peripherals[uuid].state )
+				if (that.peripherals[uuid].state != "connected") {
+					console.log("Weird error peripheral state is not correct for " + that.peripherals[uuid].id + " state=" + that.peripherals[uuid].state );
+				}
 			}
 		}
 		that.startScanningTimer = setTimeout(that.discoverDevices, 10000);
