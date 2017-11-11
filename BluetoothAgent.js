@@ -34,6 +34,8 @@ exports.BluetoothAgent = function (handler) {
 			if ( (that.powerState=="poweredOn") && (that.scanState=="off") ) {
 				//console.log("BluetoothAgent: discoverDevices - Scanning")
 				that.noble.startScanning([],false);
+				clearTimeout(that.stopScanningTimer)
+				that.stopScanningTimer = setTimeout(that.scanStop,5000);
 			} else {
 				that.startScanningTimer = (that.powerState != "poweredOn" ? 2000 : 10000)
 				that.startScanningTimer = setTimeout(that.discoverDevices, that.startScanningTimer );
@@ -203,14 +205,17 @@ exports.BluetoothAgent = function (handler) {
 	this.noble.on('discover', function (peripheral) {
 		var parsedPrefix = this.getDeviceType(peripheral.advertisement.localName)
 		if (parsedPrefix.valid) {
-			console.log("BluetoothAgent:onNoble: Valid BT Device found " + peripheral.advertisement.localName + " pbType=" + parsedPrefix.pbType )
+			console.log("BluetoothAgent:onNoble: " + (that.peripherals[peripheral.uuid] ? "Existing" : "New") + 
+											" Valid Bluetooth Device found " + peripheral.advertisement.localName + 
+											" managerType=" + parsedPrefix.managerType +
+											" pbType=" + parsedPrefix.pbType );
 			if (!that.peripherals[peripheral.uuid]) {
 				that.peripherals[peripheral.uuid] = peripheral;
 				that.peripheralStates[peripheral.uuid] = "created";
 				that.peripherals[peripheral.uuid].on('disconnect',that.handleDisconnect);
 				that.peripherals[peripheral.uuid].on('connect',that.handleConnect);
 				that.peripherals[peripheral.uuid].on('notify',that.handleNotify);
-				that.stopScanningTimer = setTimeout(that.scanStop,3000);
+				//that.stopScanningTimer = setTimeout(that.scanStop,3000);
 			}
 		} else {
 			if (! unknownDevices[peripheral.id] )
@@ -242,6 +247,7 @@ exports.BluetoothAgent = function (handler) {
 				that.connectDevice(that.peripherals[uuid], function(error, pbBulb){
 					if (error) {
 						console.log("error connecting to device " + error + " for " + that.peripherals[uuid].advertisement.localName )
+						that.peripheralStates[uuid] = "Error connecting";
 					}
 					if (pbBulb) {
 						pbBulb.periph.discoverAllServicesAndCharacteristics();
