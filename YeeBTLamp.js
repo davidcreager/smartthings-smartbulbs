@@ -28,7 +28,7 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 	this.agent = agent;
 	this.cbHandler = handler;
 	this.YeeBTLampName = YeeBTLampName;
-	this.deviceHandler = "Yeelight RGBW Light";
+	this.deviceHandler = "YeeBTLamp RGBW Light"; //YeeBTLamp RGBW Light
 	this.friendlyName = this.YeeBTLampName
 	this.uniqueName=YeeBTLampName + "(" + peripheral.uuid.toUpperCase() + ")"
 	this.characteristicsByName = {};
@@ -51,7 +51,7 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 	this.blue = 255;
 	this.bright = parseInt(bri,10) || 100;
 	this.retry_cnt = 0;
-	this.paired = null;
+	this.paired = "Unpaired";
 	this.keepAliveTimer = null;
 
 	this.periph.on("disconnect", function(){
@@ -66,43 +66,52 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 			bfr[i] = array[i]
 		};
 		//console.log("YeeBTLamp:sendBlueToothCommand:DEBUG - sending command for "+ this.friendlyName + " array=" + bfr.toString("hex"));
-		this.connect( function(error) {
-			if (error) {
-				console.log("YeeBTLamp:sendBlueToothCommand: connect error " + error + " " + that.friendlyName);
-				return
-			};
-			if (that.characteristicsByName["COMMAND_CHARACT_UUID"]) {
-					var withoutResponse = (that.characteristicsByName["COMMAND_CHARACT_UUID"].properties.indexOf('writeWithoutResponse') !== -1) &&	
-											(that.characteristicsByName["COMMAND_CHARACT_UUID"].properties.indexOf('write') === -1);				
-					that.characteristicsByName["COMMAND_CHARACT_UUID"].write(bfr, withoutResponse, function(error) {
-					if (error) {
-						console.log("YeeBTLamp:sendBlueToothCommand: write error " + error + " " + that.friendlyName);
-						return;
-					} else {
-						//console.log("YeeBTLamp:sendBlueToothCommand: Write success")
-					}
-				  });
-			} else {
-				console.log("YeeBTLamp:sendBlueToothCommand: COMMAND_CHARACT_UUID not set up " + error + " " + that.friendlyName);
-				return;
-			}
-		});			
+		/*
+		if (this.periph.state != "connected") {
+			console.log("YeeBTLamp:sendBlueToothCommand: connect error Not connected state=" + this.periph.state + 
+									" paired=" + this.paired +
+									" device=" + this.friendlyName);
+			return
+		};
+		*/
+		if (that.characteristicsByName["COMMAND_CHARACT_UUID"]) {
+				var withoutResponse = (that.characteristicsByName["COMMAND_CHARACT_UUID"].properties.indexOf('writeWithoutResponse') !== -1) &&	
+										(that.characteristicsByName["COMMAND_CHARACT_UUID"].properties.indexOf('write') === -1);				
+				that.characteristicsByName["COMMAND_CHARACT_UUID"].write(bfr, withoutResponse, function(error) {
+				if (error) {
+					console.log("YeeBTLamp:sendBlueToothCommand: write error " + error + " " + that.friendlyName);
+					return;
+				} else {
+					//console.log("YeeBTLamp:sendBlueToothCommand: Write success")
+				}
+			  });
+		} else {
+			console.log("YeeBTLamp:sendBlueToothCommand: COMMAND_CHARACT_UUID not set up " + error + " " + that.friendlyName);
+			return;
+		}
 	}.bind(this);
 	this.handleNotification = function(data, isNotify) {
 		var command;
+		var value={};
         if (data[0] == 0x43 && data[1] == 0x45) {
             if (data[2] == 1) {
-                this.cbHandler.BTNotify(this, 'power', 1); 
+                //this.cbHandler.BTNotify(this, 'power', 1); 
 				command = "Power 1";
+				value.power = 1;
             } else {
-                this.cbHandler.BTNotify(this, 'power', 0);
+                //this.cbHandler.BTNotify(this, 'power', 0);
 				command = "Power 0";
+				value.power = 0;
 			}
 			var mode = "";
 			if (data[3] == 0x01) {			
 				mode = "RGB";
+				value.red = data[4];
+				value.green = data[5];
+				value.blue = data[6];
 			} else if (data[3] == 0x02) {
 				mode = "White";
+				value.ctx = data[10];
 			} else if (data[3] == 0x03) {
 				mode = "Flow";
 			} else {
@@ -112,28 +121,38 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 									" command=" + command +
 									" D[0]=" + data[0] + " D[1]=" + data[1] + " D[2]=" + data[2] + " D[3]=" + data[3] + " D[8]=" + data[8]);
 			}
-            this.cbHandler.BTNotify(this, 'bright', data[8]);
+			value.mode = mode;
+			value.bright = data[8];
+            //this.cbHandler.BTNotify(this, 'bright', data[8]);
+			this.cbHandler.BTNotify(this, value);
 			command = (command == "" ? "setBright" + data[8] : command + "," + "setBright" + data[8]);
-			//console.log("YeeBTLamp:handleNotification: receive notify Data for device: " + this.friendlyName + 
-			//						" command=" + command + " mode=" + mode +
-			//						" D[0]=" + data[0] + " D[1]=" + data[1] + " D[2]=" + data[2] + " D[3]=" + data[3] + " D[8]=" + data[8]);
+			//console.log("YeeBTLamp:handleNotification: Received: " + this.friendlyName + 
+			//						" command=" + command + " mode=" + mode + " value=" + JSON.stringify(value)
+									//" D[0]=" + data[0] + " D[1]=" + data[1] + " D[2]=" + data[2] + " D[3]=" + data[3]
+									//+ " D[4]=" + data[4] + " D[5]=" + data[5] + " D[6]=" + data[6]
+									//+ " D[8]=" + data[8]
+			//						);
         } else if (data[0] == 0x43 && data[1] == 0x63) {
 			var statusMessage;
 			if (data[2]== 0x01) {
 				statusMessage = "Unauthorised/Not Paired"
 				this.paired = "Failed";
+				value = {paired: "Unpaired"}
 			} else if (data[2]== 0x02) {
 				statusMessage = "Authorised/Paired"
 				this.paired = "Paired";
+				value = {paired: "Paired"}
 				this.sendBlueToothCommand([0x43,0x52]); //get name
 			} else if (data[2]== 0x04) {
 				statusMessage = "Authorised Device (UDID)"
+				value = {paired: "Paired"}
 			} else if (data[2]== 0x07) {
 				statusMessage = "Imminent disconnect!!!"
 			} else {
 				statusMessage = "Unknown status response=" + data[2];
 			}
 			console.log("YeeBTLamp:handleNotification:" + this.friendlyName + " status " + statusMessage + " D[2]=" + data[2] + " D[3]=" + data[3])
+			this.cbHandler.BTNotify(this, value);
 		} else if (data[0] == 0x43 && data[1] == 0x53) {
 			var i = 0;
 			var notEmpty = false;
@@ -153,6 +172,7 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 				console.log("DEBUG data received " + 
 								" D[0]=" + data[0] + " D[1]=" + data[1] + " D[2]=" + data[2] + " D[3]=" + data[3] + " D[8]=" + data[8]);
 			}
+			/*
 			var chr;
 			var tmpReady = true;
 			for (chr in this.requiredCharacteristics) {
@@ -160,12 +180,14 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 					tmpReady=false;
 				}
 			};
-			if (this.paired!="Paired") {tmpReady=false;};
+			//if (this.paired!="Paired") {tmpReady=false;};  //TODO
+			console.log("DEBUG:YeeBTLamp:handleNotification: ready state=" + tmpReady + " yesReady=" + this.yesReady);
 			if ( (tmpReady) && (!this.yesReady) ) {
 				//console.log("Calling isReady for " + this.uniqueName)
 				this.isReady(null);
 				this.cbHandler.onDevFound(this, "YeeBTLamp", this.periph.advertisement.localName, this.uniqueName);
 			}
+			*/
 		} else {
 			console.log("YeeBTLamp:handleNotification: receive notify Unknown Data for device: " + this.friendlyName +  " data=" + data + " D[0]=" + data[0] + 
 									" D[1]=" + data[1] + " D[2]=" + data[2] + " D[8]=" + data[8]);
@@ -191,34 +213,26 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 					 // 43 67 for auth
 					 // deadbeef as magic for our Pi - 0xde,0xad,0xbe,0xbf
 			   });
-			};			
+			};
+			var chr;
+			var tmpReady = true;
+			for (chr in this.requiredCharacteristics) {
+				if (!this.characteristicsByName[this.requiredCharacteristics[chr]]) {
+					tmpReady=false;
+				}
+			};
+			//if (this.paired!="Paired") {tmpReady=false;};  //TODO
+			//console.log("DEBUG:YeeBTLamp:handleNotification: ready state=" + tmpReady + " yesReady=" + this.yesReady);
+			if ( (tmpReady) && (!this.yesReady) ) {
+				//console.log("Calling isReady for " + this.uniqueName)
+				this.isReady(null);
+				this.cbHandler.onDevFound(this, "YeeBTLamp", this.periph.advertisement.localName, this.uniqueName);
+			}			
 		} else {
 			//console.log("processCharacteristic looked up Name not found " + "0x" + characteristic.uuid )
 		}
 	}.bind(this);
 
-	this.connect = function (cb) {
-		//console.log("YeeBTLamp:connect: Connecting " + this.periph.advertisement.localName + " state=" + this.periph.state + " pair=" + this.paired)
-		if (this.periph) {
-			if (this.periph.state === "connected")  {
-				cb(null,"connected")
-			} else {
-				if (this.periph.state != "connecting"){
-					this.periph.connect( function(error){
-						if (error) {
-							cb(error,null);
-						}
-					});
-					cb(null,"connected")
-				} else {
-					console.log("YeeBTLamp:connect: device is connecting " + this.friendlyName)
-					cb("connecting",null);
-				}
-			}
-		} else {
-			cb("Peripheral is null",null)
-		}		
-	}.bind(this);
 	this.disconnect = function(cb) {
 		if (this.periph) {
 			if (this.periph.state != "connected") {
@@ -305,6 +319,10 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 			callback("Unknown attribute "+attr,null)
 		};
 	}.bind(this);
+ 	this.pair = function () {
+		this.paired = "Pairing";
+		this.sendBlueToothCommand([0x43,0x67,0xde,0xad,0xbe,0xbf]);
+	}.bind(this);
  	this.on = function () {
 		this.sendBlueToothCommand([0x43,0x40,0x01]);
 	}.bind(this);
@@ -337,6 +355,7 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 		} else {		
 			this.bright = parseInt(val,10);
 			this.sendBlueToothCommand([0x43,0x42,parseInt(val,10)]);
+			this.on();
 		}
 	}.bind(this);
 	this.setCTX = function(val) {
@@ -445,25 +464,3 @@ function CTXtoRGB(kelvin) {
 	}
 	return rgb;
 }
-
-			/*
-			if (that.characteristicsByName["COMMAND_CHARACT_UUID"]) {
-				var withoutResponse = (that.characteristicsByName["COMMAND_CHARACT_UUID"].properties.indexOf('writeWithoutResponse') !== -1) &&
-											(that.characteristicsByName["COMMAND_CHARACT_UUID"].properties.indexOf('write') === -1);				
-				that.characteristicsByName["COMMAND_CHARACT_UUID"].read(function(err,cbin){
-					if (err) {
-						console.log("YeeBTLamp:sendBlueToothCommand: read error " + error + " " + that.friendlyName);
-						return;
-					} else {
-						console.log("YeeBTLamp:sendBlueToothCommand: Read data " + " " + that.friendlyName + cbin.toString("hex"));
-					}
-					that.characteristicsByName["COMMAND_CHARACT_UUID"].write(bfr, withoutResponse, function(error) {
-						if (error) {
-							console.log("YeeBTLamp:sendBlueToothCommand: write error " + error + " " + that.friendlyName);
-							return;
-						} else {
-							//console.log("YeeBTLamp: Write color success")
-						}
-					  });
-				}); 
-				*/

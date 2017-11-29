@@ -1,5 +1,6 @@
 'use strict';
 var net = require("net");
+var properties = require("./properties.json");
 //function RGBToDec(r,g,b){((r&0x0ff)<<16)|((g&0x0ff)<<8)|(b&0x0ff)}
 function RGBToDec(r,g,b){return (r*65536)+(g*256)+b}
 function DecToRGB(rgb){return {r:((rgb>>16)&0x0ff),b:((rgb>>8)&0x0ff),g:((rgb)&0x0ff)}}
@@ -67,54 +68,55 @@ exports.YeeDevice = function (did, loc, model, power, bri,
 			      clearTimeout(that.retry_tmr);
 			      callback(0);
 		});
-
 		this.sock.on("data", function(data) {
             var rsps = data.toString().split("\r\n");
 			//console.log("socketon ="+data.toString())
-            rsps.forEach(
-				function (json, idex, array) {
-					var stuff=""
-					var retval={}
-					var ind="1"
-					try {
-						if (json) {
-							JSON.parse(json,
-								function(k,v) {
-								   if (stuff==""){stuff=k+":"+v} else {stuff=stuff+","+k+":"+v}
-								   if (k=="id") {ind=v}
-								   if (k == 'power') {
-									   that.power = (v=="on")?1:0
-										that.propChangeCb(that, 'power', that.power,ind);
-								   } else if (k == 'bright') {
-									   that.bright = parseInt(v, 10);			     
-												   that.propChangeCb(that, 'bright', that.bright,ind);
-								   } else if (k == 'ct') {
-									   that.ctx = parseInt(v, 10);			     
-												   that.propChangeCb(that, 'ctx', that.ctx,ind);												   
-								   } else if (k == 'hue') {
-									   that.hue = parseInt(v, 10);
-												   that.propChangeCb(that, 'hue', that.hue,ind);
-								   } else if (k == 'sat') {
-									   that.sat = parseInt(v, 10);	
-												   that.propChangeCb(that, 'sat', that.sat,ind);
-								   } else if (k == 'rgb') {
-									   that.rgb = Math.max(0, Math.min(+v, 0xffffff));	
-												   that.propChangeCb(that, 'rgb', that.rgb,ind);									   
-								   } else if (k == 'name') {
-									   that.name = v
-												   that.propChangeCb(that, 'name', that.name,ind);									   
-								   }
+			var retval={};
+			var ind;
+            rsps.forEach( function (json) {
+				ind = "1";
+				try {
+					if (json) {
+						retval = {json: json};
+						var jObj = JSON.parse(json);
+						if (jObj["id"]) {
+							retval.id = jObj.id;
+							retval.type = "response";
+							retval.result = jObj["result"];
+							retval.error = jObj["error"];
+						} else {
+							retval.type="notification";
+							if (jObj["method"] && jObj["method"] == "props" ) {
+								var params = jObj["params"];
+								var key;
+								var value;
+								for (key in params) {
+									if (key == 'power') {
+										value = (params[key] == "on") ? 1 : 0 ;
+									} else if ( key == 'name') {
+										value = params[key];
+									} else if ( key == 'hue' || key == 'sat' || key == 'bright' || key == 'ct' ) {
+										value = parseInt(params[key],10)
+									} else if ( key == 'rgb') {
+										value = Math.max(0, Math.min(+params[key], 0xffffff));	
+									} else {
+										value = params[key];
+									}
+									retval[key] = value;
+									that[key] = value;
 								}
-							)
-							//console.log("yeelight.sock.ondata:json is "+stuff)
-							that.propChangeCb(that,"all",json,ind)
+							} else {
+								throw new error("YeeWifiLamp:sock.on.data: Invalid Notification from yeelight " + JSON.stringify(json) );
+							}
 						}
-					}
-					catch(e) {
-						console.log("yeelight.sock.ondata:ERROR CAUGHT " + e);
+						console.log("YeeWifiLamp:sock.on.data:DEBUG logging retval.id= " + retval.id + " retval=" + JSON.stringify(retval));
+						that.propChangeCb(that, retval);
 					}
 				}
-			);
+				catch(e) {
+					console.log("yeelight.sock.ondata:ERROR CAUGHT " + e);
+				}
+			});
 	});
 
 	this.sock.on("end", function() {
@@ -201,7 +203,7 @@ exports.YeeDevice = function (did, loc, model, power, bri,
     }.bind(this);
     this.get_props = function (idn) {
 		var req = {id:(idn)?idn:1, method:'get_prop',
-				params:["power","name","bright","ct","rgb","hue","sat","color_mode","delayoff","flowing","flow_params","music_on"]}
+				params: properties["YeeWifiLamp"]["getProps"] }
 		this.sendCmd(req);
     }.bind(this);  	
     this.sendCmd = function(cmd) {

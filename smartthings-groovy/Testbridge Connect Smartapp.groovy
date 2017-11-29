@@ -1,5 +1,5 @@
 /**
- *  Smartbridge
+ *  Testbridge
  *
  *  Copyright 2017 David Creager
  *
@@ -15,7 +15,7 @@
  */
 import groovy.json.JsonSlurper
 definition(
-    name: "Smartbridge Connect",
+    name: "Testbridge Connect",
     namespace: "davec1001",
     author: "David Creager",
     description: "Allows you to connect your Yeelight or Mipow Playbulb smart lights  with SmartThings and control them from your Things area or Dashboard in the SmartThings Mobile app.",
@@ -41,7 +41,7 @@ preferences {
 def mainPage() {
 	dynamicPage(name: "mainPage", title: "Manage your Devices", nextPage: null, uninstall: true, install: true) {
 		section("Install Type") {
-        	input(name:"bridgeString", required:true, defaultValue:"SmartBridge", type:"enum",title:"Install Type", options:["TestBridge", "SmartBridge"])
+        	input(name:"bridgeString", required:true, defaultValue:"TestBridge", type:"enum",title:"Install Type", options:["TestBridge", "SmartBridge"])
         }
         section("Configure"){
            href "deviceDiscovery", title:"Discover Devices", description:""
@@ -217,7 +217,6 @@ def updated() {
 }
 
 def initialize() {
-	def bridgeString = "SmartBridge"
 	log.debug("initialize:" + bridgeString)
     ssdpSubscribe()
     subscribe(location, null, onLocation, [filterEvents:false])

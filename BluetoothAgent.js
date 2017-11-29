@@ -9,7 +9,7 @@ exports.BluetoothAgent = function (handler) {
 	this.noble = require('noble');
 	this.smartType = "Bluetooth";
 	this.btDevices = [];
-	this.peripheralStates = {};
+	this.peripheralDetails = {};
 	this.peripherals = {};
 	this.cbHandler = handler;
 	this.powerState = "startUp"
@@ -23,8 +23,16 @@ exports.BluetoothAgent = function (handler) {
 		var scanNow = true;
 		var uuid;
 		that.discoveryInProgress = true;
-		for (uuid in this.peripheralStates) {
-			if (this.peripheralStates[uuid]=="connecting") {scanNow=false}
+		var devsConnecting;
+		for (uuid in this.peripheralDetails) {
+			if (this.peripheralDetails[uuid].status == "connecting") {
+				scanNow=false
+				if (devsConnecting) {
+					devsConnecting = devsConnecting + ";" + uuid
+				} else {
+					devsConnecting = uuid
+				}
+			}
 		}
 		if (scanNow) {
 			if (that.startScanningTimer) {
@@ -41,29 +49,30 @@ exports.BluetoothAgent = function (handler) {
 				that.startScanningTimer = setTimeout(that.discoverDevices, that.startScanningTimer );
 			}
 		} else {
-				console.log("BluetoothAgent:discoverDevices: Not scanning as devices are still connecting waiting 10sec ")
+				console.log("BluetoothAgent:discoverDevices: Not scanning as devices are still connecting waiting 10sec " + devsConnecting)
 				that.startScanningTimer = setTimeout(that.discoverDevices, 10000);
 		}
 		//console.log("Discover ends")		
 	}.bind(this)
 	this.handleDisconnect = function(peripheral) {
 		peripheral = this;
-		that.peripheralStates[peripheral.uuid] = "disconnected";
+		that.peripheralDetails[peripheral.uuid].status = "disconnected";
 		console.log("BluetoothAgent:handleDisconnect Device disconnected " + peripheral.advertisement.localName);
 	}
 	this.handleConnect = function(peripheral) {
 		peripheral = this;
-		that.peripheralStates[peripheral.uuid] = "connected";
+		that.peripheralDetails[peripheral.uuid].status = "connected";
 		console.log("BluetoothAgent:handleConnect Device connected " + peripheral.advertisement.localName);
 	}
 	this.handleNotify = function(peripheral) {
 		peripheral = this;
-		that.peripheralStates[peripheral.uuid] = "state";
+		that.peripheralDetails[peripheral.uuid].status = "state";
 		console.log("BluetoothAgent:handleDisconnect Device Notified " + peripheral.advertisement.localName);
 	}
 	this.connectDevice = function(peripheral,cb) {
 		var pbPrefix;
 		var btBulb;
+		console.log("BluetoothAgent:connectDevice: Calling connect on " + peripheral.advertisement.localName + " connectable=" + peripheral.connectable );
 		peripheral.connect( function (error) {
 			if (peripheral.state != "connected") {
 				if (!error) { error = "Unknown Error" }
@@ -211,11 +220,16 @@ exports.BluetoothAgent = function (handler) {
 											" pbType=" + parsedPrefix.pbType );
 			if (!that.peripherals[peripheral.uuid]) {
 				that.peripherals[peripheral.uuid] = peripheral;
-				that.peripheralStates[peripheral.uuid] = "created";
+				that.peripheralDetails[peripheral.uuid] = {status: "created", device: null};
 				that.peripherals[peripheral.uuid].on('disconnect',that.handleDisconnect);
 				that.peripherals[peripheral.uuid].on('connect',that.handleConnect);
 				that.peripherals[peripheral.uuid].on('notify',that.handleNotify);
 				//that.stopScanningTimer = setTimeout(that.scanStop,3000);
+			} else {
+				if (that.peripheralDetails[peripheral.uuid].status == "disconnected") {
+					console.log("BluetoothAgent:onNoble:discover: found a disconnected device, so try and reconnect " + peripheral.advertisement.localName);
+					that.peripheralDetails[peripheral.uuid].status = "reconnect";
+				}
 			}
 		} else {
 			if (! unknownDevices[peripheral.id] )
@@ -230,45 +244,60 @@ exports.BluetoothAgent = function (handler) {
 		this.powerState=state;
 		console.log("BluetoothAgent: state changed received -" + state + " new powerState=" + this.powerState)
 		if (state === 'poweredOn') {
-			console.log("BluetoothAgent: Powered On")
+			console.log("BluetoothAgent: Powered On");
+		} else {
+			console.log("BluetoothAgent: Weird State change " + state);
 		};
 	}.bind(this);
 	this.handleScanStart = function(message) {
-		console.log("BluetoothAgent: Scan starts")
+		//console.log("BluetoothAgent: Scan starts")
 		this.scanState="on"
 	}.bind(this);
 	this.handleScanStop = function(message) {
-		console.log("BluetoothAgent: Scan stops ")
+		//console.log("BluetoothAgent: Scan stops ")
 		that.scanState = "off"
 		var uuid;
 		for (uuid in that.peripherals) {
-			if ( (that.peripherals[uuid]) && (that.peripherals[uuid].state != "connected") && (that.peripherals[uuid].state != "connecting") ){
-				that.peripheralStates[uuid] = "connecting";
-				that.connectDevice(that.peripherals[uuid], function(error, pbBulb){
-					if (error) {
-						console.log("error connecting to device " + error + " for " + that.peripherals[uuid].advertisement.localName )
-						that.peripheralStates[uuid] = "Error connecting";
-					}
-					if (pbBulb) {
-						pbBulb.periph.discoverAllServicesAndCharacteristics();
-						pbBulb.periph.on('servicesDiscover', function (services) {
-							services.map(function (service) {
-								service.on('characteristicsDiscover', function (characteristics) {
-									characteristics.map(function (characteristic) {
-										//console.log("BluetoothAgent:handleScanStop: calling process characteristic  " + that.peripherals[uuid])
-										pbBulb.processCharacteristic(characteristic);
+			//console.log("BluetoothAgent:handleScanStop: Looking at " + that.peripherals[uuid].advertisement.localName + "(" + uuid + ")" +
+			//					" state=" + that.peripherals[uuid].state + " connectable=" + that.peripherals[uuid].connectable);
+			if ( (that.peripherals[uuid]) && that.peripherals[uuid].state != "connected" && that.peripherals[uuid].state != "connecting" && 
+											( that.peripheralDetails[uuid].status == "created" || that.peripheralDetails[uuid].status == "reconnect" ) ) {
+				//unless 
+				if ((!that.peripheralDetails[uuid].device) || that.peripheralDetails[uuid].device.smartType != "YeeBTLamp" || that.peripheralDetails[uuid].paired == "Paired" ) {
+					that.peripheralDetails[uuid].status = "connecting";
+					console.log("BluetoothAgent:handleScanStop: Set state to connecting and about to call connect " + 
+											that.peripherals[uuid].advertisement.localName );
+					that.connectDevice(that.peripherals[uuid], function(error, pbBulb){
+						if (error) {
+							console.log("BluetoothAgent:handleScanStop:error connecting to device " + error + " for " + that.peripherals[uuid].advertisement.localName )
+							that.peripheralDetails[uuid].status = "Error connecting";
+						}
+						if (pbBulb) {
+							console.log("BluetoothAgent:handleScanStop:about to discover services " + that.peripherals[uuid].advertisement.localName );
+							that.peripheralDetails[uuid].device = pbBulb;
+							pbBulb.periph.discoverAllServicesAndCharacteristics();
+							pbBulb.periph.on('servicesDiscover', function (services) {
+								services.map(function (service) {
+									service.on('characteristicsDiscover', function (characteristics) {
+										characteristics.map(function (characteristic) {
+											//console.log("BluetoothAgent:handleScanStop: calling process characteristic  " + that.peripherals[uuid])
+											pbBulb.processCharacteristic(characteristic);
+										});
 									});
 								});
 							});
-						});
 
-					} else {
-						console.log("BluetoothAgent:handleScanStop:Weird error pbBulb not found for " + that.peripherals[uuid].id )		
-					}
-				});
+						} else {
+							console.log("BluetoothAgent:handleScanStop:Weird error pbBulb not found for " + that.peripherals[uuid].id )		
+						}
+					});
+				} else {
+					//console.log("BluetoothAgent:handleScanStop: YeeBTLamp needs pairing " + that.peripherals[uuid].advertisement.localName + "(" + uuid + ")" + " smarttype=" + 
+					//					that.peripheralDetails[uuid].device.smartType + " pairStatus=" + that.peripheralDetails[uuid].device.pairStatus)
+				}
 			}	else {
 				if (that.peripherals[uuid].state != "connected") {
-					console.log("Weird error peripheral state is not correct for " + that.peripherals[uuid].id + " state=" + that.peripherals[uuid].state );
+					//console.log("Weird error peripheral state is not correct for " + that.peripherals[uuid].id + " state=" + that.peripherals[uuid].state );
 				}
 			}
 		}

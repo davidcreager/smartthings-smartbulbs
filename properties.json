@@ -1,14 +1,16 @@
 {
 	"bridgeEnabledTypes" : {
-							"YeeBTLamp" : {"enabled" : true, "agent" : "BluetoothAgent"}
-							,"YeeWifiLamp" : {"enabled" : true, "agent" : "YeeAgent"}
+							"YeeBTLamp" : {"enabled" : false, "agent" : "BluetoothAgent"}
+							,"YeeWifiLamp" : {"enabled" : false, "agent" : "YeeAgent"}
 							,"Playbulb" : {"enabled" : true, "agent" : "BluetoothAgent"}
-							,"MiLight" : {"enabled" : true, "agent" : "MiAgent"}
-							,"iPhone" : {"enabled" : true, "agent" : "FindIphone"}
-							,"RFXDevice" : {"enabled" : true, "agent" : "RFXAgent"}
+							,"MiLight" : {"enabled" : false, "agent" : "MiAgent"}
+							,"iPhone" : {"enabled" : false, "agent" : "FindIphone"}
+							,"RFXDevice" : {"enabled" : false, "agent" : "RFXAgent"}
 							},
-	"ServerPort" : 8083,
-	"DevicePortStart" : 8201,
+	"ServerPort" : 5183 ,
+	"DevicePortStart" : 5301,
+        "ssdpUDN": "TestBridge",
+        "ssdpUSN": "urn:schemas-upnp-org:device:TestBridge2:1",
 	"ManagerPrefixes" : { "PB_" : "Playbulb", "XMCTD_" : "YeeBTLamp"},
 	"Playbulb" : {
 		"Properties" : ["battery_level","serial_number_string", "hardware_revision_string", "manufacturer_name_string", "software_revision_string" ]
@@ -17,8 +19,9 @@
 		, "AdvertismentPrefixTypes" : { "PB_Candle" : "CANDLE", "PB_Sphere" : "SPHERE" }
 		},
 	"YeeWifiLamp" : {
-		"Properties" : ["fw_ver","model"]
-		, "Configs" : {"pos": "off", "transition":"Sudden", "dcolor":"Previous", "custom" : "", "level" : 100, "transitionspeed" : 250, "autooff" : 0}
+		"Properties": ["fw_ver","model"]
+		, "Configs": {"pos": "off", "transition":"Sudden", "dcolor":"Previous", "custom" : "", "level" : 100, "transitionspeed" : 250, "autooff" : 0}
+		, "getProps": ["power","name","bright","ct","rgb","hue","sat","color_mode","delayoff","flowing","flow_params","music_on"]
 		},
 	"iPhone" : {
 		"Phones" : [{"smartName": "David's Phone", "name": "iPhone", "deviceDisplayName": "iPhone 7"}

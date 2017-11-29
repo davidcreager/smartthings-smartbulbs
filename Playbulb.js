@@ -246,11 +246,16 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, 
 		(onoff) ? this.on() : this.off();
 	}.bind(this);
 	this.setColor = function (r,g,b) {
-		var hsv = COLORS.rgb.hsv.raw(r,g,b);
-		this.updateColorChar(hsv[1],r,g,b)
+		this.setRGB(r,g,b);
 	}.bind(this);
 	this.setRGB = function (r,g,b) {
-		var hsv = COLORS.rgb.hsv.raw(r,g,b);
+		//var hsv = COLORS.rgb.hsv.raw(r,g,b);
+		var hsv;
+		if (this.type === "CANDLE") {
+			hsv = rgbToMilightHue(r,g,b);
+		} else {
+			hsv = COLORS.rgb.hsv.raw(r,g,b);
+		}
 		this.updateColorChar(hsv[1],r,g,b)
 	}.bind(this);
 	this.getColor = function (cb) {
@@ -281,18 +286,30 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, 
 		});
 	}.bind(this);
 	this.getBright = function () {
-		var hsv = COLORS.rgb.hsv.raw(this.red,this.green,this.blue);
+		if (this.type === "CANDLE") {
+			hsv = rgbToMilightHue(this.red,this.green,this.blue);	
+		} else {
+			hsv = COLORS.rgb.hsv.raw(this.red,this.green,this.blue);
+		}
 		return hsv[2];
 	}.bind(this);
 	this.setBright = function (a) {
 		//console.log("Playbulb:setBright: current rgb =" + this.red + "," + this.green + "," + this.blue + " sat:" + this.saturation + " bright=" + this.bright)
 		this.bright = a;
-		var hsv = COLORS.rgb.hsv.raw(this.red,this.green,this.blue);
+		var hsv;
+		var rgb;
+		if (this.type === "CANDLE") {
+			hsv = rgbToMilightHue(this.red,this.green,this.blue);
+			hsv[2] = a;
+			rgb = MilightHSVtoRGB(hsv); //MilightHSVtoRGB
+		} else {
+			hsv = COLORS.rgb.hsv.raw(this.red,this.green,this.blue);
+			hsv[2] = a;
+			rgb = COLORS.hsv.rgb(hsv); //MilightHSVtoRGB
+		}
 		//console.log("Playbulb:setBright: current hsv =" + hsv[0] + "," + hsv[1] + "," + hsv[2]);
-		hsv[2] = a;
-		var rgb = COLORS.hsv.rgb(hsv);
 		//console.log("Playbulb:setBright: about to set rgb =" + rgb[0] + "," + rgb[1] + "," + rgb[2] + " sat:" + hsv[1] + " bright=" + this.bright)
-		this.updateColorChar(hsv[1],rgb[0],rgb[1],rgb[2]);
+		this.updateColorChar(hsv[1],this.red,this.green,this.blue);
 	}.bind(this);
 	this.setCTX = function(val) {
 		var rgb = CTXtoRGB(val);
@@ -314,13 +331,8 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, 
 	}.bind(this);
 	this.updateColorChar = function(a,r,g,b) {
 		//console.log("Update color for " + this.friendlyName + " saturation=" + a + " red=" + r + " green" + g + " blue=" + b);
-
-		that.connect( function() {
-			if (that.periph.state != "connected") {
-				console.log("BluetoothManager:updateColorChar " + that.uniqueName + " Not connected " + that.periph.state);
-				return;
-			};
-			//console.log("Playbulb:updateColorChar: input r,g,b=" + r + "," + g + "," + b + " current rgb=" + that.red + "," + that.green + "," + that.blue)
+		//console.log("Playbulb:updateColorChar: input r,g,b=" + r + "," + g + "," + b + " current rgb=" + that.red + "," + that.green + "," + that.blue)
+		if (that.periph.state == "connected") {
 			that.saturation = (a) ? parseInt(a,10) : that.saturation;
 			that.red = (r) ? parseInt(r,10) : that.red;
 			that.green = (g) ? parseInt(g,10) : that.green;
@@ -339,12 +351,61 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, 
 					}
 				  });
 			});
-			
-		});	
+		} else {
+			console.log("Playbulb:updateColorChar:ypdateColorChar fails invalid peripheral state -" + that.periph.state + " should be connected")
+		}
+		
 	}.bind(this);
 	
 	return (this)
 }.bind(this);
+function hsvToMilightColor(hsv) 
+{ 
+    // On the HSV color circle (0..360) with red at 0 degree. We need to convert to the Milight color circle 
+    // which has 256 values with red at position 176 
+    return (256 + 176 - Math.floor(Number(hsv[0]) / 360.0 * 255.0)) % 256; 
+};
+function rgbToMilightHue(r, g, b) {
+    // On the HSV color circle (0..360) the hue value start with red at 0 degrees. We need to convert this
+    // to the Milight color circle which has 256 values with red at position 176
+    var hsv = COLORS.rgb.hsv.raw([r,g,b]);
+    return (256 + 176 - Math.floor(Number(hsv[0]) / 360.0 * 255.0)) % 256;
+  }
+  
+function rgbToFullColorHsv(r, g, b) {
+    var hsv = COLORS.rgb.hsv.raw([r,g,b]);
+    hsv[0] = (hsv[0] == 0)?0xB0:hsv[0] * 0xFF % 0x167;
+    return hsv;
+  }
+
+function MilightHSVtoRGB(hsv) {
+	var h = ( (360 + Math.floor((176/256.0) * 359.0) - Math.floor((Number(hsv[0])/256.0 * 359.0))) % 360) / 60;
+	var s = hsv[1] / 100;
+	var v = hsv[2] / 100;
+	var hi = Math.floor(h) % 6;
+
+	var f = h - Math.floor(h);
+	var p = 255 * v * (1 - s);
+	var q = 255 * v * (1 - (s * f));
+	var t = 255 * v * (1 - (s * (1 - f)));
+	v *= 255;
+
+	switch (hi) {
+		case 0:
+			return [v, t, p];
+		case 1:
+			return [q, v, p];
+		case 2:
+			return [p, v, t];
+		case 3:
+			return [p, q, v];
+		case 4:
+			return [t, p, v];
+		case 5:
+			return [v, p, q];
+	}
+};
+  
 function CTXtoRGB(kelvin) {
 	var tmpKelvin = kelvin/100;
 	var rgb={}

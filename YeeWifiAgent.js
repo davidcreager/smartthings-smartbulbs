@@ -135,9 +135,11 @@ exports.YeeAgent = function(handler){
 			);
 		}
 	  }.bind(this);
-    this.devPropChange = function (dev, prop, val,ind) {
+    //this.devPropChange = function (dev, prop, val,ind) {
+	this.devPropChange = function (dev, val, ind) {
         //console.log("devPropChange: "+dev.did + " " + prop + " value: " + val);
-        this.handler.onDevPropChange(dev, prop, val,ind);
+        //this.handler.onDevPropChange(dev, prop, val,ind);
+		this.handler.onDevPropChange(dev, val, ind);
       }.bind(this);
     this.scanSock.on('message', this.handleDiscoverMsg);
     this.discSock.on('message', this.handleDiscoverMsg);
