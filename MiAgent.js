@@ -7,6 +7,7 @@ var MiDevice = function(inpData) {
 	this.device = inpData.dev;
 	this.uniqueName = inpData.uniqueName;
 	this.smartType = "MiLight";
+	this.responds = "none";
 	this.type = "Milight GU10s";
 	this.friendlyName = inpData.friendlyName;
 	this.deviceHandler = "Playbulb RGBW Light";

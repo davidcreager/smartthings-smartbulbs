@@ -25,6 +25,7 @@ exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, 
 	var that = this;
 	this.type = pbType || "Unknown";
 	this.smartType = "YeeBTLamp";
+	this.responds = "changes";
 	this.agent = agent;
 	this.cbHandler = handler;
 	this.YeeBTLampName = YeeBTLampName;

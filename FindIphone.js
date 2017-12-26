@@ -10,12 +10,13 @@ var iphoneDevice = function(inpData) {
 	this.name = inpData.name;
 	this.deviceDisplayName = inpData.deviceDisplayName;
 	this.smartType = "iPhone";
+	this.responds = "none";
 	this.type = "Apple Iphone";
 	this.friendlyName = inpData.friendlyName;
 	this.deviceHandler = "Find Iphone";
 	this.trigger = function(){
 		var that = this;
-		
+		console.log("FindIphone:trigger: device.iRequest.jar=" + this.device.iRequest.jar);
 		this.device.checkSession(function(err, res, body) {
 			if (err) {
 				console.log("FindIphone:trigger:checkSession: NOT reusing session " + err);

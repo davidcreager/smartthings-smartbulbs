@@ -7,6 +7,7 @@ var RFXDevice = function(inpData) {
 	this.device = inpData.dev;
 	this.uniqueName = inpData.uniqueName;
 	this.smartType = "RFXDevice";
+	this.responds = "none";
 	this.type = "Somfy";
 	this.friendlyName = inpData.friendlyName;
 	this.deviceHandler = "RFXCOM Somfy Blinds";

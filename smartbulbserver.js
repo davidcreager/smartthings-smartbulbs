@@ -39,11 +39,9 @@ var responseStack = {};
 var BTResponsesByDevices = {}
 var responseObjectStack = {};
 var responseUniqueNameStack = {};
-var yeelightAgent;
-var playbulbAgent;
+var responsePromises = [];
 var smartSids = {};
 var sid = UUID();
-var eventCounter=1;
 var commandSeq = 1 + (Math.random() * 1e3) & 0xff;
 const G_serverPort = properties.ServerPort
 var devicePortCounter = properties.DevicePortStart
@@ -107,19 +105,16 @@ if (gTEST){
 		console.log("smartbulbserver: Starting SSDP Annoucements for Bridge " + 
 				" location=" +  "http://"+ ip.address() + ":" + G_serverPort + '/bridge'
 				+ " usn=" + properties.ssdpUSN + " udn=" + properties.ssdpUDN);
-	var server = http.createServer(httpRequestHandler)
-	server.listen(G_serverPort);
-	servers[G_serverPort]=server;
+	servers[G_serverPort] = http.createServer(httpRequestHandler);
+	servers[G_serverPort].listen(G_serverPort)
 	var G_enabledTypes = ( function () {
 		var type;
-		var tmp="";
 		var enabledTypes = []
 		var stringOfPossibleTypes="";
 		for (let i0 in properties.bridgeEnabledTypes) {
 			stringOfPossibleTypes = (stringOfPossibleTypes=="" ? i0 : stringOfPossibleTypes + " or " + i0)
 		}
 		process.argv.forEach((val, index) => {
-			tmp == "" ? tmp = index + ":" + val : tmp = tmp + "," + index + ":" + val
 			if (index > 1) {
 				if (val=="TEST") {
 					gTEST = true;
@@ -204,8 +199,6 @@ handleAgentEvents.BTDisconnect = function(peripheral, device) {
 }.bind(this);
 
 handleAgentEvents.manageSubscriptions = function() {
-	
-	var cnt;
 	if (subscriptionStack.length > 0) {
 		if (!subscriptionStack[subscriptionStack.length-1].done) {
 			//console.log("smartbulbserver:manageSubscriptions: subscriptionStack has " + subscriptionStack.length + " entries");
@@ -215,39 +208,27 @@ handleAgentEvents.manageSubscriptions = function() {
 							});
 			var req = http.request(subscriptionBeingProcessed.options, function(resp) {
 				var body = "";
-				if (resp.statusCode == 200) {
-					//console.log("smartbulbserver:manageSubscriptions: request sent response status=" + resp.statusCode);
-				} else {
+				if (resp.statusCode != 200) {
 					console.log("smartbulbserver:manageSubscriptions: request sent ERROR response status=" + resp.statusCode);
 				}
 				resp.setEncoding("utf8");
 				resp.on("data", function(chunk) {
-							//console.log("smartbulbserver:manageSubscriptions: DEBUG - data received ");
 							body  = body + chunk;
 						});
 				resp.on("end", function(chunk) {
-							//console.log("smartbulbserver:manageSubscriptions: DEBUG - end received ");
 							subscriptionBeingProcessed.done=true;
-							//delete subscriptionStack[arrayInd];
 						});
 				resp.on("error", function(chunk) {
 							console.log("smartbulbserver:manageSubscriptions: DEBUG - error received ");
 						});
-				});
-				req.write("<e:propertyset xmlns:e=\"urn:schemas-upnp-org:event-1-0\">");
-				req.write("<e:property>");
-				req.write("<command>" + cmd + "</command>" )						
-				req.write("</e:property>");
-				req.write("</e:propertyset>");
-				req.end();
-			} else {
-				if (cnt>10) {
-					console.log("smartbulbserver:manageSubscriptions: subscriptionStack still waiting for response");
-					cnt=0;
-				}
-			}
-	} else {
-		//console.log("smartbulbserver:manageSubscriptions: subscriptionStack is empty");
+			});
+			req.write("<e:propertyset xmlns:e=\"urn:schemas-upnp-org:event-1-0\">");
+			req.write("<e:property>");
+			req.write("<command>" + cmd + "</command>" )						
+			req.write("</e:property>");
+			req.write("</e:propertyset>");
+			req.end();
+		}
 	}
 	setTimeout(handleAgentEvents.manageSubscriptions,1500);
 };
@@ -269,27 +250,21 @@ handleAgentEvents.BTNotify = function(device, value, ind) {
 					if (cmd == "red" || cmd == "green" || cmd == "blue") {
 						rgb[cmd] = value[cmd];
 					} else if ( cmd == "bright") {
-						cmds.push({method: "set_bright", params: [value.cmd]});
+						cmds.push({method: "set_bright", params: {value: value.cmd}});
 					} else if ( cmd == "ctx") {
-						cmds.push({method: "set_ctx", params: [value.cmd]});
+						cmds.push({method: "set_ctx", params: {value: value.cmd}});
 					} else if ( cmd == "power") {
-						cmds.push({method: "set_power", params: [value.cmd]});
+						cmds.push({method: "set_power", params: {value: value.cmd}});
 					}
 				}
 				if (rgb.red != undefined) {
 					var hex = COLORS.rgb.hex([rgb.red,rgb.green,rgb.blue])
-					cmds.push({method: "set_rgb", stColor: {hex: hex}, params: [hex]});
+					cmds.push({method: "set_rgb", stColor: {hex: hex}, params: {value: hex}});
 				}
-				BTResponsesByDevices[device.uniqueName].requests[req].write(JSON.stringify(responseObjectStack[ind]));
-				responseStack[ind].end();
-				retObj = {"uniqueName": smartDevice.uniqueName, "method": "set_rgb", "stColor": stColorValue, "params": {"value": [rgb]}}
-				
-						responseStack[ind].writeHead(200, {"Content-Type": "application/json"}); //application/json
-						responseStack[ind].write(JSON.stringify({"uniqueName":device.uniqueName,"method":"get_props",
-																"params":res}))							
-						responseStack[ind].end();
-				
-				
+				BTResponsesByDevices[device.uniqueName].requests[req].writeHead(200, {"Content-Type": "application/json"});
+				BTResponsesByDevices[device.uniqueName].requests[req].write(JSON.stringify(
+								{"uniqueName": device.uniqueName, "method": "get_props", params: cmds}));
+				BTResponsesByDevices[device.uniqueName].requests[req].end();
 			}
 		}
 		if (smartSubscribers[device.uniqueName]) {
@@ -311,7 +286,6 @@ handleAgentEvents.BTNotify = function(device, value, ind) {
 												"SEQ": subscriberDeets.seq
 										}
 									}; 			
-				//console.log("DEBUG reqOptions = " + JSON.stringify(reqOptions));
 				subscriptionStack.push({"options": reqOptions, "done": false, "value": value, "device": device.uniqueName});
 				//console.log("smartbulbserver:BTNotify: Processing subscriber " + subscriber + " port=" + subscriberDeets.port + 
 				//									" seq=" + subscriberDeets.seq + " sid=" + "uuid:" + subscriberDeets.sid +
@@ -329,27 +303,24 @@ handleAgentEvents.BTNotify = function(device, value, ind) {
 	
 }.bind(this);
 handleAgentEvents.onDevFound = function(device, type, name, uniqueName, agent) {
-	console.log("smartbulbserver:handleAgentEvents:onDevFound: device.did = " + device.did + " type=" + type + " name=" + name + " uniqueName=" + uniqueName)
+	//console.log("smartbulbserver:handleAgentEvents:onDevFound: device.did = " + device.did + " type=" + type + " name=" + name + " uniqueName=" + uniqueName)
 	if (device) {
 		if (!smartSSDs[uniqueName]) {
 			if (!servers[devicePortCounter]) {
 				servers[devicePortCounter]=http.createServer(httpRequestHandler);
-				console.log("smartbulbserver: Created server for " + device.friendlyName + " IP:PORT=" + ip.address() + ":" + devicePortCounter + 
-												" unique=" + device.uniqueName + " type=" + type );
+				servers[devicePortCounter].listen(devicePortCounter)
+				//console.log("smartbulbserver: Created server for " + device.friendlyName + " IP:PORT=" + ip.address() + ":" + devicePortCounter + 
+				//								" unique=" + device.uniqueName + " type=" + type );
 			} else {
 				console.log("smartbulbserver:handleAgentEvents:onDevFound: Weird server already exists")
 			}
-
-			servers[devicePortCounter].listen(devicePortCounter)
 			smartSSDs[device.uniqueName] = new SSDP({allowWildcards:true,sourcePort:1900,udn:device.uniqueName,
 						location:"http://"+ ip.address() + ":" + devicePortCounter +
 						'/light?' + "uniqueName="+ device.uniqueName +
 						'&type=' + type
 						});
 			smartSSDs[device.uniqueName].addUSN('urn:schemas-upnp-org:device:' + type +  ':1');
-			console.log("smartbulbserver: Starting SSDP Annoucements for " + device.friendlyName +
-					" location=" +  "http://"+ ip.address() + ":" + devicePortCounter + '/light?' + "uniqueName="+ device.uniqueName + '&type=' + type
-					+ " usn=" + 'urn:schemas-upnp-org:device:' + type +  ':1');
+			console.log("smartbulbserver: Starting SSDP Annoucements for " + device.friendlyName + " location=" + smartSSDs[device.uniqueName]._location);
 			smartSSDs[device.uniqueName].start();
 			smartConfigs[device.uniqueName]= Object.assign({}, properties[type].Configs);
 			smartPorts[device.uniqueName] = devicePortCounter;
@@ -370,62 +341,53 @@ handleAgentEvents.onDevConnected = function(device){
 handleAgentEvents.onDevDisconnected = function(device){
 		console.log("smartbulbserver:handleAgentEvents:onDevDisconnected: host:port=" + device.host + ":" + device.port + " " + device.did + 
 					" model=" + device.model + " bright:hue:sat=" + device.bright + ":" + device.hue + ":" + device.sat)
-		/*if (device.did in smartIDs) {
-			delete smartSDDPs[device.did]
-			delete smartLocations[device.did]
-			delete smartIDs[device.did]
-		} else {
-			console.log("onDevDisconnected: ERROR DEVICE NOT FOUND" + device.did + " " + device.name)
-		}
-		*/
 };
-
 handleAgentEvents.onDevPropChange = function(device, val){
-		if (val.type == "response") {
-			console.log("smartbulbserver:onDevPropChange: response " + device.did + " ind=" + val.id + "result type=" + typeof(val.result) + " val: " + JSON.stringify(val));
-			if (val.id){
-				if (responseStack[val.id]) {
-					if (val.error) {
-						responseStack[val.id].writeHead(506, {"Content-Type": "application/json"});
-						responseStack[val.id].write(JSON.stringify(val.error));
-						console.log("smartbulbserver:onDevPropChange: Result NOT OK result=" + val.result + " error=" + JSON.stringify(val.error));
-					} else if (val.result) {
-						if (val.result.length == 1 && val.result[0] == "ok") {
-							responseStack[val.id].write(JSON.stringify(responseObjectStack[val.id]));
-							responseStack[val.id].end();
-						} else {
-							var res = {};
-							for (var index in properties[device.smartType]["getProps"]) {
-								//console.log("DEBUG: index=" + index + " property=" + properties[device.smartType]["getProps"][index] + " result=" + val.result[index])
-								if (val.result[index]) {
-									res[properties[index]]=val.result[index]
-								} else {
-									res[properties[index]]=null
-								}
-							}
-							responseStack[val.id].writeHead(200, {"Content-Type": "application/json"}); //application/json
-							responseStack[val.id].write(JSON.stringify({"uniqueName":responseUniqueNameStack[val.id],"method":"get_props",
-																	"params":res}))							
-							responseStack[val.id].end();
-						}
-					} else {
+	if (val.type == "response") {
+		console.log("smartbulbserver:onDevPropChange: response " + device.did + " ind=" + val.id + "result type=" + typeof(val.result) + " val: " + JSON.stringify(val));
+		if (val.id){
+			if (responseStack[val.id]) {
+				if (val.error) {
+					responseStack[val.id].writeHead(506, {"Content-Type": "application/json"});
+					responseStack[val.id].write(JSON.stringify(val.error));
+					console.log("smartbulbserver:onDevPropChange: Result NOT OK result=" + val.result + " error=" + JSON.stringify(val.error));
+				} else if (val.result) {
+					if (val.result.length == 1 && val.result[0] == "ok") {
+						responseStack[val.id].write(JSON.stringify(responseObjectStack[val.id]));
 						responseStack[val.id].end();
-						console.log("smartbulbserver:onDevPropChange: Invalid Response result=" + val.result + " error=" + JSON.stringify(val.error));
+					} else {
+						var res = {};
+						for (var index in properties[device.smartType]["getProps"]) {
+							//console.log("DEBUG: index=" + index + " property=" + properties[device.smartType]["getProps"][index] + " result=" + val.result[index])
+							if (val.result[index]) {
+								res[properties[index]]=val.result[index]
+							} else {
+								res[properties[index]]=null
+							}
+						}
+						responseStack[val.id].writeHead(200, {"Content-Type": "application/json"}); //application/json
+						responseStack[val.id].write(JSON.stringify({"uniqueName":responseUniqueNameStack[val.id],"method":"get_props",
+																"params":res}))							
+						responseStack[val.id].end();
 					}
-					responseStack[val.id] = null
-					responseObjectStack[val.id] = null
 				} else {
-					console.log("smartbulbserver:onDevPropChange: " + device.did + " " + device.friendlyName + " request not found for response " + val.id);
-					return;
+					responseStack[val.id].end();
+					console.log("smartbulbserver:onDevPropChange: Invalid Response result=" + val.result + " error=" + JSON.stringify(val.error));
 				}
+				responseStack[val.id] = null
+				responseObjectStack[val.id] = null
 			} else {
-				console.log("smartbulbserver:onDevPropChange: " + device.did + " " + device.friendlyName + " request index not set " + val.id);
+				console.log("smartbulbserver:onDevPropChange: " + device.did + " " + device.friendlyName + " request not found for response " + val.id);
+				return;
 			}
-		} else if (val.type == "notification") {
-			console.log("smartbulbserver:onDevPropChange: response " + device.did + " ind=" + val.id + " val: " + JSON.stringify(val));
 		} else {
-			console.log("smartbulbserver:onDevPropChange: " + device.did + " " + device.friendlyName + " type not notification or response " + val.type);
+			console.log("smartbulbserver:onDevPropChange: " + device.did + " " + device.friendlyName + " request index not set " + val.id);
 		}
+	} else if (val.type == "notification") {
+		console.log("smartbulbserver:onDevPropChange: notification " + device.did + " val: " + JSON.stringify(val));
+	} else {
+		console.log("smartbulbserver:onDevPropChange: " + device.did + " " + device.friendlyName + " type not notification or response " + val.type);
+	}
 
 };
 
@@ -435,7 +397,6 @@ function httpRequestHandler(req,resp) {
 		resp.statusCode = 400;
 		resp.end();
 	})
-
 	resp.on('finish', function(err) {
 		//console.error("smartbulbserver:httpRequestHandler: Debug Finish event "+ retProps(err,true) );
 	});
@@ -470,7 +431,7 @@ function httpRequestHandler(req,resp) {
 				resp.write("</root>");
 				resp.end();
 	}
-	var url=URL.parse(req.url, true);
+	var url = URL.parse(req.url, true);
 	var query = querystring.parse(url.query);
 	var smartDevice;
 	console.log("smartbulbserver:httpRequestHandler: Received Request pathname=" + url.pathname  + " from:" + req.connection.remoteAddress + 
@@ -488,7 +449,7 @@ function httpRequestHandler(req,resp) {
 		var key;
 		for (key in smartDevices) {
 			dni = ip.toLong(ip.address()).toString(16) + smartPorts[smartDevices[key].uniqueName].toString(16);
-			console.log("DEBUG DNIs " + smartDevices[key].uniqueName + " ip:port=" + ip.address() + ":" + smartPorts[smartDevices[key].uniqueName] + " dni=" + dni + " iphex="+ip.toLong(ip.address()).toString(16) + " portHex=" + smartPorts[smartDevices[key].uniqueName].toString(16) );
+			//console.log("DEBUG DNIs " + smartDevices[key].uniqueName + " ip:port=" + ip.address() + ":" + smartPorts[smartDevices[key].uniqueName] + " dni=" + dni + " iphex="+ip.toLong(ip.address()).toString(16) + " portHex=" + smartPorts[smartDevices[key].uniqueName].toString(16) );
 			managedDevices.push({"dni": dni.toUpperCase(), uniqueName: smartDevices[key].uniqueName})
 		}
 		writeDiscoveryResp(resp, properties.ssdpUDN, properties.ssdpUDN, properties.ssdpUDN, ip.address(), G_serverPort, null, sDevices,managedDevices )
@@ -496,6 +457,7 @@ function httpRequestHandler(req,resp) {
 	} else {
 		if ( (url.query) && (url.query.uniqueName) ) {
 			smartDevice = smartDevices[url.query.uniqueName]
+			var retObj = {"uniqueName": smartDevice.uniqueName}
 			if (smartDevice) {
 				if (url.pathname == "/subscription") {
 			//TODO sort this out
@@ -523,83 +485,62 @@ function httpRequestHandler(req,resp) {
 					writeDiscoveryResp(resp, smartDevice.smartType, smartDevice.uniqueName, smartDevice.friendlyName, ip.address(), smartPorts[smartDevice.uniqueName], oTags, null )
 					console.log("smartbulbserver:httpRequestHandler: desc query for " + url.query.uniqueName + " (type)modeltype=" + smartDevice.type + " smartType=" + smartDevice.smartType + " dh=" + smartDevice.deviceHandler)
 				} else if (url.pathname.includes("HubAction")) {
-					var hPos = url.pathname.indexOf("HubAction/") + 10
 					var effect=url.query.transition
 					var duration=url.query.transitionspeed
 					if ( (effect != "Smooth") && ((effect != "Sudden")) ) {(effect = "Sudden")};
 					if ( (!duration) || (duration < 30) || (duration > 2000) ) {duration = 500};
-					var retObj;
 					commandSeq = commandSeq + 1;
 					var valid = true;
 					var done = false;
 					var prop;
-					if (url.pathname.includes("/rgb")) {
-						var stColorValue, rgb, hex, hsl
-						var qQuery=url.query
-						if (qQuery.mode=="hex") {
-							rgb = COLORS.hex.rgb(qQuery.value)
-							hsl = COLORS.hex.hsl.raw(qQuery.value)
-							hex = qQuery.value
-						} else if (url.query.mode=="hsl") {
-							rgb = COLORS.hsl.rgb([qQuery.hue,qQuery.saturation,100])
-							hex = COLORS.hsl.hex([qQuery.hue,qQuery.saturation,100])
-							hsl = [qQuery.hue,qQuery.saturation,100]
-						} else if (url.query.mode=="decimal") {
-							rgb = DecToRGB(url.query.value)
-							hsl = COLORS.rgb.hsl.raw(rgb)
-							hex = COLORS.rgb.hex(rgb)
-						} else {
-							//FFFAF0
-							rgb = COLORS.hex.rgb("FFFAF0")
-							hsl = COLORS.hex.hsl.raw("FFFAF0")
-							hex = "FFFAF0"
-						}
-						/*stColorValue = {	red:rgb[0], green:rgb[1], blue:rgb[2],
-											hue:((hsl[0]/360)*100),saturation:hsl[1],
-											hex:hex }*/
-						stColorValue = {	red:rgb[0], green:rgb[1], blue:rgb[2],
-											hue:qQuery.hue,saturation:qQuery.saturation,
-											hex:hex }
-						smartDevice.setRGB(rgb[0], rgb[1], rgb[2], effect, duration, commandSeq);
-						
-						retObj = {"uniqueName": smartDevice.uniqueName, "method": "set_rgb", "stColor": stColorValue, "params": {"value": [rgb]}}
-						console.log("smartbulbserver:httpRequestHandler: change color pathname=" + url.pathname + " friendlyName=" + smartDevice.friendlyName + " uniqueName=" + smartDevice.uniqueName + 
-																									" mode=" + url.query.mode + " value=" + url.query.value);
-					} else if (url.pathname.includes("/ping")) {
+					if (url.pathname.includes("/ping")) {
 						done=true;
 						resp.writeHead(200, {"Content-Type": "application/json"});
 						resp.write(JSON.stringify({"uniqueName": smartDevice.uniqueName, "method": "pingresponse"}));
 						resp.end();
 					} else if (url.pathname.includes("/pair")) {
 						retObj = {"uniqueName": smartDevice.uniqueName, "method":"pair", "params": {"value": null}}
-						smartDevice.pair(url.query.value, effect, duration, commandSeq);
 						console.log("smartbulbserver:httpRequestHandler: pair url - req.url=" + req.url + 
 										" pathname=" + url.pathname + " queryObj=" + JSON.stringify(url.query) );
+					} else if (url.pathname.includes("/rgb")) {
+						var rgb, hex, hsl
+						if (url.query.mode=="hex") {
+							hex = url.query.value
+							rgb = COLORS.hex.rgb(hex)
+							hsl = COLORS.hex.hsl.raw(hex)
+						} else if (url.query.mode=="hsl") {
+							hsl = [url.query.hue,url.query.saturation,100]
+							rgb = COLORS.hsl.rgb(hsl)
+							hex = COLORS.hsl.hex(hsl)
+						} else if (url.query.mode=="decimal") {
+							rgb = DecToRGB(url.query.value)
+							hsl = COLORS.rgb.hsl.raw(rgb)
+							hex = COLORS.rgb.hex(rgb)
+						} else {
+							rgb = COLORS.hex.rgb("FFFAF0")
+							hsl = COLORS.hex.hsl.raw("FFFAF0")
+							hex = "FFFAF0"
+						}						
+						retObj.method = "set_rgb";
+						retObj.colors = {red: rgb[0], green: rgb[1], blue: rgb[2],
+											hue: hsl[0], saturation: hsl[1],
+											hex:hex };
+						retObj.params = {value: retObj.colors.hex, effect: effect, duration: duration};
 					} else if (url.pathname.includes("/trigger")) {
-						//url.pathname.includes("/on") ? smartDevice.on() : smartDevice.off();
-						smartDevice.trigger();
-						console.log("smartbulbserver:httpRequestHandler: trigger url  pathname=" + url.pathname + " friendlyName=" + smartDevice.friendlyName + " uniqueName=" + smartDevice.uniqueName + " mode=" + url.query.mode + " value=" + url.query.value)
-						done=true;
-						resp.writeHead(200, {"Content-Type": "application/json"});
-						resp.write(JSON.stringify({"uniqueName": smartDevice.uniqueName, "method": "trigger"}));
-						resp.end();
+						retObj.method = "trigger";
 					} else if (url.pathname.includes("/set_bright")) {
-						retObj = {"uniqueName": smartDevice.uniqueName, "method":"set_bright", "params": {"value": [url.query.value]}}
-						smartDevice.setBright(url.query.value, effect, duration, commandSeq);
-						console.log("smartbulbserver:httpRequestHandler: set bright url - req.url=" + req.url + 
-										" pathname=" + url.pathname + " queryObj=" + JSON.stringify(url.query) );
+						retObj.method = "set_bright";
+						retObj.params = {"value": url.query.value, effect: effect, duration: duration};
 					} else if ( (url.pathname.includes("/off")) || (url.pathname.includes("/on")) ){
-						retObj = {"uniqueName": smartDevice.uniqueName, "method": "set_power", "params": {"value": (url.pathname.includes("/on")) ? ["on"] : ["off"]}}
-						//url.pathname.includes("/on") ? smartDevice.on() : smartDevice.off();
-						smartDevice.setPower((url.pathname.includes("/on")) ? 1 : 0, effect, duration, commandSeq)
-						console.log("smartbulbserver:httpRequestHandler: on/off url  pathname=" + url.pathname + " friendlyName=" + smartDevice.friendlyName + " uniqueName=" + smartDevice.uniqueName + " mode=" + url.query.mode + " value=" + url.query.value)
+						retObj.method = "set_power";
+						retObj.params = {"value": (url.pathname.includes("/on")) ? "on" : "off", effect: effect, duration: duration};
 					} else if (url.pathname.includes("/ctx")) {
-						retObj = {"uniqueName": smartDevice.uniqueName, "method": "set_ctx", "params": {"value": [url.query.value]}}
-						smartDevice.setCTX(url.query.value, effect, duration, commandSeq);
-						console.log("smartbulbserver:httpRequestHandler: set Color Temp url - req.url=" + req.url + 
-										" pathname=" + url.pathname + " queryObj=" + JSON.stringify(url.query) );
+						retObj.method = "set_ctx";
+						retObj.params = {"value": url.query.value, effect: effect, duration: duration};
 					} else if (url.pathname.includes("/refresh")) {
 						retObj={"uniqueName": smartDevice.uniqueName, "method": "refresh", "params": {}};
+						retObj.method = "refresh";
+						retObj.params = {};
 						if (smartDevice.smartType == "Playbulb") {
 							done=true;
 							async.eachSeries(properties[smartDevice.smartType]["Properties"], function(prop,cb){
@@ -666,17 +607,21 @@ function httpRequestHandler(req,resp) {
 					if (valid){
 						if (!done) {
 							resp.writeHead(200, {"Content-Type": "application/json"});
-							//BTResponsesByDevices[device.uniqueName]
-							if (smartDevice.smartType == "YeeWifiLamp") {
+							execCommand(smartDevice, retObj, commandSeq );
+							if (smartDevice.responds == "none") {
+								resp.write(JSON.stringify(retObj));
+								resp.end();
+							} else if (smartDevice.responds == "indexed") {
 								responseStack[commandSeq] = resp;
 								responseObjectStack[commandSeq] = retObj;
-								responseUniqueNameStack[commandSeq] = smartDevice.uniqueName;
-							} else if (smartDevice.smartType == "YeeBTLamp") {
+								responseUniqueNameStack[commandSeq] = smartDevice.uniqueName;							
+							} else if (smartDevice.responds == "changes") {
 								if (!BTResponsesByDevices[smartDevice.uniqueName]) {
 									BTResponsesByDevices[smartDevice.uniqueName] = {requests: []};
 								}
 								BTResponsesByDevices[smartDevice.uniqueName].requests.push(resp);
 							} else {
+								console.log("smartbulbserver:httpRequestHandler: invalid smartDevice.responds=" + smartDevice.responds);
 								resp.write(JSON.stringify(retObj));
 								resp.end();
 							}
@@ -701,9 +646,6 @@ function httpRequestHandler(req,resp) {
 			resp.writeHead(103, {"Content-Type": "text/xml"});
 			resp.end();
 		}
-//console.log("smartbulbserver:httpRequestHandler: Responded to /light devName="  + smartDevice.uniqueName + " modelType=" + uniqueName.type)
-//console.log("smartbulbserver:httpRequestHandler: Device not Available " + url.query.uniqueName + " length=" + playbulbAgent.btDevices.length + " names=" + nms)
-//console.log("smartbulbserver:httpRequestHandler: deviceMac not in smartMacs array deviceMac=" + deviceMac);
 	}
 }
 
@@ -737,3 +679,31 @@ function encodeXml(s) {
         .replace(/\t/g, '&#x9;').replace(/\n/g, '&#xA;').replace(/\r/g, '&#xD;')
     );
 }
+function execCommand(smartDevice, retObj, commandSeq) {
+	console.log("DEBUG:execCommand: called with method=" + retObj.method + " " + smartDevice.friendlyName + " seq=" + commandSeq);
+	switch (retObj.method) {
+		case "pair":
+			smartDevice.pair();
+		break;
+		case "trigger":
+			smartDevice.trigger();
+		break;
+		case "set_rgb":
+			smartDevice.setRGB(retObj.colors.red, retObj.colors.green, retObj.colors.blue, retObj.params.effect, retObj.params.duration, commandSeq);
+		break;
+		case "set_bright":
+			smartDevice.setBright(retObj.params.value, retObj.params.effect, retObj.params.duration, commandSeq);
+		break;
+		case "set_power":
+			smartDevice.setPower((retObj.params.value == "on") ? 1 : 0, retObj.params.effect, retObj.params.duration, commandSeq);
+		break;
+		case "set_ctx":
+			smartDevice.setCTX(retObj.params.value, retObj.params.effect, retObj.params.duration, commandSeq);
+		break;
+		case "refresh":
+		break;
+		default:
+			console.log("execCommand: Unknown Method=" + retObj.method + " " + smartDevice.friendlyName);
+	}
+};
+

@@ -36,8 +36,7 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, 
 	this.type = pbType || "Unknown";
 	this.agent = agent;
 	this.smartType = "Playbulb";
-	
-	
+	this.responds = "none";
 	this.deviceHandler = "Playbulb RGBW Light";
 	this.cbHandler = handler;
 	this.playbulbName = playbulbName;
@@ -256,7 +255,8 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, 
 		} else {
 			hsv = COLORS.rgb.hsv.raw(r,g,b);
 		}
-		this.updateColorChar(hsv[1],r,g,b)
+		//this.updateColorChar(hsv[1],r,g,b)
+		this.updateColorChar(0,r,g,b)
 	}.bind(this);
 	this.getColor = function (cb) {
 		//abyss var that=this
@@ -295,21 +295,26 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, 
 	}.bind(this);
 	this.setBright = function (a) {
 		//console.log("Playbulb:setBright: current rgb =" + this.red + "," + this.green + "," + this.blue + " sat:" + this.saturation + " bright=" + this.bright)
-		this.bright = a;
 		var hsv;
 		var rgb;
 		if (this.type === "CANDLE") {
-			hsv = rgbToMilightHue(this.red,this.green,this.blue);
-			hsv[2] = a;
-			rgb = MilightHSVtoRGB(hsv); //MilightHSVtoRGB
+			//hsv = rgbToMilightHue(this.red,this.green,this.blue);
+			hsv = COLORS.rgb.hsv.raw(this.red,this.green,this.blue);
+			hsv[2] = hsv[2] * (a/this.bright)
+			//rgb = MilightHSVtoRGB(hsv); //MilightHSVtoRGB
+			rgb = COLORS.hsv.rgb(hsv);
+			console.log("DEBUG CANDLE rgb=" + rgb + " hsv=" + hsv + " ");
 		} else {
 			hsv = COLORS.rgb.hsv.raw(this.red,this.green,this.blue);
-			hsv[2] = a;
-			rgb = COLORS.hsv.rgb(hsv); //MilightHSVtoRGB
+			hsv[2] = hsv[2] * (a/100)
+			rgb = COLORS.hsv.rgb(hsv); 
+			console.log("DEBUG not Candle rgb=" + rgb + " hsv=" + hsv);
 		}
 		//console.log("Playbulb:setBright: current hsv =" + hsv[0] + "," + hsv[1] + "," + hsv[2]);
 		//console.log("Playbulb:setBright: about to set rgb =" + rgb[0] + "," + rgb[1] + "," + rgb[2] + " sat:" + hsv[1] + " bright=" + this.bright)
-		this.updateColorChar(hsv[1],this.red,this.green,this.blue);
+		this.bright = a;
+		//this.updateColorChar(hsv[1],rgb[0],rgb[1],rgb[2]);
+		this.updateColorChar(0,rgb[0],rgb[1],rgb[2]);
 	}.bind(this);
 	this.setCTX = function(val) {
 		var rgb = CTXtoRGB(val);
@@ -333,12 +338,21 @@ exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, 
 		//console.log("Update color for " + this.friendlyName + " saturation=" + a + " red=" + r + " green" + g + " blue=" + b);
 		//console.log("Playbulb:updateColorChar: input r,g,b=" + r + "," + g + "," + b + " current rgb=" + that.red + "," + that.green + "," + that.blue)
 		if (that.periph.state == "connected") {
+		/*	console.log("Playbulb:updateColorChar: sat=" + a + " this sat="+ this.saturation + " current rgb now =" + that.red + "," + that.green + "," + that.blue + " New=" + r + "," + g + "," + b)
+			var rgb = [r,g,b]
+			var hsvraw = COLORS.rgb.hsv.raw(rgb)
+			var rgbfromhsvraw = COLORS.hsv.rgb(hsvraw);
+			var hsv = COLORS.rgb.hsv.raw(rgb)
+			var rgbfromhsv = COLORS.hsv.rgb(hsv);
+			console.log("Playbulb:updateColorChar: HSV=" + hsv + " HSVraw=" + hsvraw + " rgb=" +  rgb + " rgb from raw=" + rgbfromhsvraw + " rgb from hsv=" + rgbfromhsv)
+		*/
+			
+			
 			that.saturation = (a) ? parseInt(a,10) : that.saturation;
 			that.red = (r) ? parseInt(r,10) : that.red;
 			that.green = (g) ? parseInt(g,10) : that.green;
 			that.blue = (b) ? parseInt(b,10) : that.blue;
 			var colorBytes = new Buffer([a, r, g, b]);
-			//console.log("Playbulb:updateColorChar: current rgb now =" + that.red + "," + that.green + "," + that.blue)
 			var withoutResponse = (that.characteristicsByName["colorUuid"].properties.indexOf('writeWithoutResponse') !== -1) &&
 										(that.characteristicsByName["colorUuid"].properties.indexOf('write') === -1);
 			that.characteristicsByName["colorUuid"].read(function(err,cbin){
@@ -369,7 +383,7 @@ function rgbToMilightHue(r, g, b) {
     // On the HSV color circle (0..360) the hue value start with red at 0 degrees. We need to convert this
     // to the Milight color circle which has 256 values with red at position 176
     var hsv = COLORS.rgb.hsv.raw([r,g,b]);
-    return (256 + 176 - Math.floor(Number(hsv[0]) / 360.0 * 255.0)) % 256;
+    return [(256 + 176 - Math.floor(Number(hsv[0]) / 360.0 * 255.0)) % 256, hsv[1], hsv[2]];
   }
   
 function rgbToFullColorHsv(r, g, b) {
@@ -380,16 +394,19 @@ function rgbToFullColorHsv(r, g, b) {
 
 function MilightHSVtoRGB(hsv) {
 	var h = ( (360 + Math.floor((176/256.0) * 359.0) - Math.floor((Number(hsv[0])/256.0 * 359.0))) % 360) / 60;
+	console.log("DEBUG:MilightHSVtoRGB hsv=" + hsv + " first bit=" + (360 + Math.floor((176/256.0) * 359.0)) + " second=" + Math.floor((Number(hsv[0])/256.0 * 359.0)))
+	var deb = (360 + Math.floor((176/256.0) * 359.0) - Math.floor((Number(hsv[0])/256.0 * 359.0)))
+	console.log("DEBUG:MilightHSVtoRGB: deb=" + deb + " modded=" + (deb % 360));
 	var s = hsv[1] / 100;
 	var v = hsv[2] / 100;
-	var hi = Math.floor(h) % 6;
+	var hi = Math.floor(h*6) % 6;
 
 	var f = h - Math.floor(h);
 	var p = 255 * v * (1 - s);
 	var q = 255 * v * (1 - (s * f));
 	var t = 255 * v * (1 - (s * (1 - f)));
 	v *= 255;
-
+	console.log("DEBUG:MilightHSVtoRGB h=" + h + " h*6=" + (h*6) + " floor=" + Math.floor(h*6) + " mod=" + (Math.floor(h*6) % 6) + " hi=" + hi)
 	switch (hi) {
 		case 0:
 			return [v, t, p];

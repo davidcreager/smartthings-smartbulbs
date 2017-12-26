@@ -15,6 +15,7 @@ exports.YeeDevice = function (did, loc, model, power, bri,
 	this.agent = agent;
     this.name = name;
 	this.smartType = "YeeWifiLamp";
+	this.responds = "indexed";
 	this.deviceHandler = "Yeelight RGBW Light";
 	this.type = "Yeelight";
     if (power == 'on')
@@ -109,7 +110,10 @@ exports.YeeDevice = function (did, loc, model, power, bri,
 								throw new error("YeeWifiLamp:sock.on.data: Invalid Notification from yeelight " + JSON.stringify(json) );
 							}
 						}
-						console.log("YeeWifiLamp:sock.on.data:DEBUG logging retval.id= " + retval.id + " retval=" + JSON.stringify(retval));
+						console.log("YeeWifiLamp:sock.on.data:DEBUG logging retval type=" + retval.type + 
+									( retval.type == "response" ? " id= " + retval.id + " result=" + retval.result + " error=" + retval.error : 
+									" method =" + jObj.method + " params=" + JSON.stringify(jObj.params) )
+									);
 						that.propChangeCb(that, retval);
 					}
 				}
