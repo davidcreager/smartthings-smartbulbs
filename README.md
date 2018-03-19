@@ -24,7 +24,8 @@ This release is much tidier, handles bluetooth and wifi bulbs.   Also, handles I
 **cd /var/opt/node**
 **sudo git clone https://github.com/davidcreager/smartthings-smartbulbs.git**
 ##### Move files to correct directories
-/var/opt/node/smartthings-smartbulbs
+**cd /var/opt/node/smartthings-smartbulbs**
+
 **sudo chown smartbulbs:smartbulbs /home/smartbulbs/**
 
 **sudo cp /var/opt/node/smartthings-smartbulbs/smartbulbserver.service /etc/systemd/system/**
@@ -39,9 +40,11 @@ This release is much tidier, handles bluetooth and wifi bulbs.   Also, handles I
 
 ##### Use systemctl to have server start after startup
 **sudo systemctl daemon-reload**
-****sudo systemctl enable smartbulbserver**
+
+**sudo systemctl enable smartbulbserver**
 ##### Start server and check status
 **sudo systemctl start smartbulbserver**
+
 **sudo systemctl status smartbulbserver**
 
 ## Todo
