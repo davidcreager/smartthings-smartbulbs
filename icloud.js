@@ -17,7 +17,7 @@ var icloud = {
 			algorithm: 'aes-256-ctr'
 		});
 		icloud.jar = request.jar(fileStore);
-
+		console.log("Logging jar directory" + __dirname);
 		icloud.iRequest = request.defaults({
 			jar: icloud.jar,
 			headers: {

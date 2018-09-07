@@ -1,9 +1,9 @@
 {
 	"bridgeEnabledTypes" : {
-							"YeeBTLamp" : {"enabled" : true, "agent" : "BluetoothAgent"}
+							"YeeBTLamp" : {"enabled" : false, "agent" : "BluetoothAgent"}
 							,"YeeWifiLamp" : {"enabled" : true, "agent" : "YeeAgent"}
-							,"Playbulb" : {"enabled" : true, "agent" : "BluetoothAgent"}
-							,"MiLight" : {"enabled" : true, "agent" : "MiAgent"}
+							,"Playbulb" : {"enabled" : false, "agent" : "BluetoothAgent"}
+							,"MiLight" : {"enabled" : false, "agent" : "MiAgent"}
 							,"iPhone" : {"enabled" : true, "agent" : "FindIphone"}
 							,"RFXDevice" : {"enabled" : true, "agent" : "RFXAgent"}
 							},
@@ -21,8 +21,8 @@
 		, "Configs" : {"pos": "off", "transition":"Sudden", "dcolor":"Previous", "custom" : "", "level" : 100, "transitionspeed" : 250, "autooff" : 0}
 		},
 	"iPhone" : {
-		"Phones" : [{"smartName": "David's Phone", "name": "iPhone", "deviceDisplayName": "iPhone 7"}
-					,{"smartName": "Rosie's Phone", "name": "Rosie's Iphone", "deviceDisplayName": "iPhone 7"}]
+		"Phones" : [{"smartName": "David's Phone", "name": "David's Iphone", "deviceDisplayName": "iPhone X"}
+					,{"smartName": "Rosie's Phone", "name": "Rosie's iPhone", "deviceDisplayName": "iPhone 8"}]
 		},
 	"MiLight" : {
 		"Properties" : ["fw_ver","model"]

@@ -2,7 +2,7 @@
 'use strict';
 //var yeeLight = require('./YeeWifiLamp.js');
 var COLORS=require("color-convert")
-var noble = require('noble');
+//var noble = require('noble');
 var http = require('http');
 var URL = require('url');
 var ip=require("ip")
@@ -716,6 +716,7 @@ function encodeXml(s) {
         .replace(/\t/g, '&#x9;').replace(/\n/g, '&#xA;').replace(/\r/g, '&#xD;')
     );
 }
+/*
 function debugHandles(device) {
 	console.log("DEBUG 0 " + device.friendlyName + " periph=" + device.periph._noble.state +
 			" " + device.periph._noble.address +
@@ -747,3 +748,4 @@ function debugHandles(device) {
 	console.log("DEBUG 1 " + device.friendlyName + " Services=" + gattServices);
 	console.log("DEBUG 2 " + device.friendlyName + " gatts charas avaiable props=" + gattCharProps);
 }
+*/
