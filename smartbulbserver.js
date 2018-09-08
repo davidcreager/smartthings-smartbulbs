@@ -25,13 +25,18 @@ process.argv.forEach((val, index) => {
 });
 console.log("smartbulbserver: input arguments are " + tmp)
 */
+var gTEST = false;
  (function () {
 	var tmp="";
 	var enabledTypes = []
 	process.argv.forEach((val, index) => {
 		tmp == "" ? tmp = index + ":" + val : tmp = tmp + "," + index + ":" + val
 		if (index > 1) {
-			enabledTypes[index-2] = val;
+			if (val=="TEST") {
+				gTEST = true;
+			} else {
+				enabledTypes[index-2] = val;
+			}
 		}
 	});
 
@@ -128,13 +133,17 @@ var G_enabledTypes = ( function () {
 	process.argv.forEach((val, index) => {
 		tmp == "" ? tmp = index + ":" + val : tmp = tmp + "," + index + ":" + val
 		if (index > 1) {
-			//console.log("DEBUG val=" + val);
-			//enabledTypes[index-2] = val;
-			enabledTypes.push(val);
-			if (  (!properties.bridgeEnabledTypes[val]) ) {
-				console.log("\nINPUT ERROR - type does not exist should be " + stringOfPossibleTypes)
-				throw "invalid input argument";
-			}
+				if (val=="TEST") {
+					gTEST = true;
+					console.log("smartserver: setting TEST MODE")
+				} else {
+					enabledTypes.push(val);
+					console.log("DEBUG "+ val);
+					if (  (!properties.bridgeEnabledTypes[val]) ) {
+						console.log("\nINPUT ERROR - type does not exist should be " + stringOfPossibleTypes)
+						throw "invalid input argument";
+					}
+				}
 		}
 	});
 	if (enabledTypes.length==0) {
@@ -260,7 +269,11 @@ handleAgentEvents.manageSubscriptions = function() {
 };
 
 //execute first time
-handleAgentEvents.manageSubscriptions();
+if (gTEST) {
+	console.log("DEBUG Testing ");
+} else {
+	handleAgentEvents.manageSubscriptions();
+}
 
 handleAgentEvents.BTNotify = function(device,command,value) {
 	console.log("smartbulbserver: Notify received for " + device.friendlyName + " command=" + command + " value=" + value);
@@ -456,11 +469,11 @@ function httpRequestHandler(req,resp) {
 		var sDevices = [];
 		resp.write("<supportedDevices>");
 		G_enabledTypes.forEach( (val,index) => {
-			sDevices.push( {"usn":'urn:schemas-upnp-org:device:' + val +  ':1'
-							, "type": val
-							, "discoverString": "lan discovery urn:schemas-upnp-org:device:" + val + ":1"})
+			sDevices.push( {	usn: "urn:schemas-upnp-org:device:" + val + ":1"
+								, type: val
+								, discoverString: "lan discovery urn:schemas-upnp-org:device:" + val + ":1"}
+							)
 		});
-		//console.log("DEBUG " + JSON.stringify(sDevices) );
 		resp.write(JSON.stringify(sDevices))
 		resp.write("</supportedDevices>")
 		resp.write("</device>");
