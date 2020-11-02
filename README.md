@@ -1,9 +1,10 @@
 # smartbulbs-smartthings
-Provides a smartapp, device handler and node.js server to manage yeelight bulbs
-## V2
-Second release.    
-Provides a smartapp, device handler and node.js server to manage yeelight and mipow bulbs.
-This release is much tidier, handles bluetooth and wifi bulbs.   Also, handles IP changes of the bulbs
+Provides a smartapp, device handler and node.js server to manage various lan connected devices
+## V3
+Third release.    
+Provides a smartapp, device handler and node.js server to manage yeelight, mipow bulbs, Milight 2.4ghz bulbs (using a Ibox to connect to wifi), Somfy blinds connected to RFXCOM, and a first try and having findmyiphone
+
+
 
 
 ### Installation
