@@ -1,7 +1,7 @@
 {
 	"bridgeEnabledTypes" : {
 							"YeeBTLamp" : {"enabled" : false, "agent" : "BluetoothAgent"}
-							,"YeeWifiLamp" : {"enabled" : true, "agent" : "YeeAgent"}
+							,"YeeWifiLamp" : {"enabled" : false, "agent" : "YeeAgent"}
 							,"Playbulb" : {"enabled" : false, "agent" : "BluetoothAgent"}
 							,"MiLight" : {"enabled" : false, "agent" : "MiAgent"}
 							,"iPhone" : {"enabled" : true, "agent" : "FindIphone"}
@@ -37,7 +37,13 @@
 		, "delayBetweenCommands" : 80
 		, "commandRepeat" : 2
 		, "ignoreBlinds" : ["Blind 0x000005/2[2]"]
-		, "nameBlinds" : [{"uniqueName": "Blind 0x000005/1[1]", "friendlyName": "Blinds"}]
+		, "nameBlinds" : [{"uniqueName": "Blind 0x000005/1[1]", "friendlyName": "Blinds"},
+							{"uniqueName": "Blind 0x000006/1[1]", "friendlyName": "Left Awning"},
+							{"uniqueName": "Blind 0x000006/2[2]", "friendlyName": "Right Awning"},
+							{"uniqueName": "Blind 0x000006/3[3]", "friendlyName": "Left Awning Light"},
+							{"uniqueName": "Blind 0x000006/4[4]", "friendlyName": "Right Awning Light"},
+							{"uniqueName": "Blind 0x000007/1[1]", "friendlyName": "Lounge Blind"}
+							]
 	},
 	"YeeBTLamp" : {
 		"Properties" : ["fw_ver","model"]
