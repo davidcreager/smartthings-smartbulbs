@@ -1,0 +1,30 @@
+{
+	"bridge": {
+			"name": "Homebridge",
+			"username": "CC:22:3D:E3:CE:30",
+			"port": 51826,
+			"pin": "031-45-154"
+	},
+	"updateInterval": 30,
+	"mqtt": {
+			"url": "mqtt://192.168.1.144",
+			"temperatureTopic": "sensors/temperature",
+			"humidityTopic": "sensors/humidity",
+			"batteryTopic": "sensors/battery"
+	},
+	"disableBatteryLevel": false,
+	"lowBattery": 10,
+	"temperatureOffset": 0,
+	"humidityOffset": 0,
+	"accessories": [
+					{
+					"accessory": "Xiamoi-Temp",
+					"name": "Temperature & Humidity",
+					"address": "a4:c1:38:f7:92:27",
+					"bindKey": "eed67d3cec84bee92fd3a304978c76a0",
+					"timeout": 15,
+					"temperatureName": "Temperature",
+					"humidityName": "Humidity"
+					}
+				]
+}
