@@ -1,4 +1,5 @@
 const EventEmitter = require("events");
+//
 //exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, bri)
 //exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, bri)
 class XiaomiDevice {

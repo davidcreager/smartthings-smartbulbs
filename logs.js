@@ -1,6 +1,6 @@
 const chalk = require("chalk");
 const util = require("util");
-
+//
 module.exports.Log = function(prefix,debugEnabled,timestampEnabled) {
 	this.LogLevel = {
 			INFO : "info",

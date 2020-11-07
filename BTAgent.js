@@ -2,6 +2,7 @@ const { version } = require("../package.json");
 const EventEmitter = require("events");
 const noble = require("@abandonware/noble");
 const { Parser, EventTypes, SERVICE_DATA_UUID } = require("./parser");
+//
 
 const defaultTimeout = 15;
 //	AgentOptions = {type: "adverts|connected", log: null, 
