@@ -1,15 +1,220 @@
-const mqtt = require("mqtt");
-const { Scanner } = require("./scanner");
 const { version } = require("../package.json");
-
+const EventEmitter = require("events");
+const noble = require("@abandonware/noble");
+const { Parser, EventTypes, SERVICE_DATA_UUID } = require("./parser");
 
 const defaultTimeout = 15;
+/* const scanner = new Scanner(this.config.address, {
+      log: this.log,forceDiscovering: this.config.forceDiscovering !== false,
+      restartDelay: this.config.forceDiscoveringDelay, bindKey: this.config.bindKey
+    });
+	*/
+//	AgentOptions = {type: "adverts|connected", log: null, 
+//					address: "uuid",
+//					bindKey: "",
+//					handler:null, 
+//					options:{}}
+class Scanner extends EventEmitter {
+  constructor(agentOptions) {
+	var that = this;
+    super();
+    agentOptions = agentOptions || {};
+	this.devices = {}; // Agent stuff
+	this.handler = agentOptions.handler || null;
+    this.log = agentOptions.log || console;
+    this.address = agentOptions.address;
+    this.bindKey = agentOptions.bindKey;
+	const {forceDiscovering = true, restartDelay = 2500} = agentOptions.options;
+    this.forceDiscovering = forceDiscovering;
+    this.restartDelay = restartDelay;
+	
+    this.scanning = false;
+    this.configure();
+  }
+  configure() {
+    noble.on("discover", this.onDiscover.bind(this));
+    noble.on("scanStart", this.onScanStart.bind(this));
+    noble.on("scanStop", this.onScanStop.bind(this));
+    noble.on("warning", this.onWarning.bind(this));
+    noble.on("stateChange", this.onStateChange.bind(this));
+  }
 
+  start() {
+    this.log.info("Start scanning.");
+    try {
+      noble.startScanning([], true);
+      this.scanning = true;
+    } catch (e) {
+      this.scanning = false;
+      this.log.error(e);
+    }
+  }
+
+  stop() {
+    this.scanning = false;
+    noble.stopScanning();
+  }
+
+  onStateChange(state) {
+    if (state === "poweredOn") {
+      this.start();
+    } else {
+      this.log.info(`Stop scanning. (${state})`);
+      this.stop();
+    }
+  }
+
+  onWarning(message) {
+    this.log.info("Warning: ", message);
+  }
+
+  onScanStart() {
+    this.log.debug("Started scanning.");
+  }
+
+  onScanStop() {
+    this.log.info("Stopped scanning.");
+    // We are scanning but something stopped it. Restart scan.
+    if (this.scanning && this.forceDiscovering) {
+      setTimeout(() => {
+        this.log.debug("Restarting scan.");
+        this.start();
+      }, this.restartDelay);
+    }
+  }
+
+  onDiscover(peripheral) {
+    const { advertisement: { serviceData } = {}, id, address } =
+      peripheral || {};
+    if (!this.isValidAddress(address) && !this.isValidAddress(id)) {
+		if ( (!ignoredDevices[address]) && (address) ) {
+			this.log.info("Ignoring address " + address);
+			ignoredDevices[address] = [peripheral];
+		}
+		return;
+    }
+    const miServiceData = this.getValidServiceData(serviceData);
+    if (!miServiceData) {
+      return;
+    }
+    // ** DEBUG** this.logPeripheral({ peripheral, serviceData: miServiceData });
+    const result = this.parseServiceData(miServiceData.data);
+    if (result == null) {
+      return;
+    }
+	if  (!devices[address]) {
+		device[address] = new xiaomiDevice(log,null,this);
+		this.log.info("Creating new device " + address);
+	}
+    if (!result.frameControl.hasEvent) {
+      // ** DEBUG** this.log.debug("No event");
+      return;
+    }
+    const { eventType, event } = result;
+    switch (eventType) {
+      case EventTypes.temperature: {
+        const { temperature } = event;
+        this.emit("temperatureChange", temperature, { id, address });
+        break;
+      }
+      case EventTypes.humidity: {
+        const { humidity } = event;
+        this.emit("humidityChange", humidity, { id, address });
+        break;
+      }
+      case EventTypes.battery: {
+        const { battery } = event;
+        this.emit("batteryChange", battery, { id, address });
+        break;
+      }
+      case EventTypes.temperatureAndHumidity: {
+        const { temperature, humidity } = event;
+        this.emit("temperatureChange", temperature, { id, address });
+        this.emit("humidityChange", humidity, { id, address });
+        break;
+      }
+      case EventTypes.illuminance: {
+        const { illuminance } = event;
+        this.emit("illuminanceChange", illuminance, { id, address });
+        break;
+      }
+      case EventTypes.moisture: {
+        const { moisture } = event;
+        this.emit("moistureChange", moisture, { id, address });
+        break;
+      }
+      case EventTypes.fertility: {
+        const { fertility } = event;
+        this.emit("fertilityChange", fertility, { id, address });
+        break;
+      }
+      default: {
+        this.emit("error", new Error(`Unknown event type ${eventType}`));
+        return;
+      }
+    }
+    this.emit("change", event, { id, address });
+  }
+
+  cleanAddress(address) {
+    if (address == null) {
+      return address;
+    }
+    return address.toLowerCase().replace(/[:-]/g, "");
+  }
+
+  isValidAddress(address) {
+    return (
+      this.address == null ||
+      this.cleanAddress(this.address) === this.cleanAddress(address)
+    );
+  }
+
+  getValidServiceData(serviceData) {
+    return (
+      serviceData &&
+      serviceData.find(data => data.uuid.toLowerCase() === SERVICE_DATA_UUID)
+    );
+  }
+
+  parseServiceData(serviceData) {
+    try {
+      return new Parser(serviceData, this.bindKey).parse();
+    } catch (error) {
+      this.emit("error", error);
+    }
+  }
+
+  logPeripheral({peripheral: {address, id, rssi, advertisement: {localName}}, serviceData}){
+    this.log.debug(`[${address || id}] Discovered peripheral
+      Id: ${id}
+      LocalName: ${localName}
+      rssi: ${rssi}
+      serviceData: ${serviceData.data.toString("hex")}`);
+  }
+}
+
+//exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, bri)
+//exports.Playbulb = function ( playbulbName, pbType, peripheral, handler, agent, bri)
 class xiaomiDevice {
-  constructor(log, config) {
+  constructor(log, config, scanner) {
     this.log = log;
     this.config = config || {};
     this.displayName = this.config.name;
+	this.scanner = scanner;
+	
+	var that = this;
+	this.type = pbType || "Unknown";
+	this.agent = agent;
+	this.smartType = "XiaomiDevice";
+	this.responds = "none";
+	this.deviceHandler = "Xiaomi Thermostat";
+	this.cbHandler = handler;
+	this.playbulbName = playbulbName;
+	this.friendlyName = this.playbulbName;
+	this.uniqueName=playbulbName + "(" + peripheral.uuid.toUpperCase() + ")"
+	this.characteristicsByName = {};
+	
 
     this.latestTemperature = undefined;
     this.latestHumidity = undefined;
@@ -21,10 +226,7 @@ class xiaomiDevice {
     this.temperatureMQTTTopic = undefined;
     this.humidityMQTTTopic = undefined;
     this.batteryMQTTTopic = undefined;
-    this.mqttClient = this.setupMQTTClient();
-
-    this.scanner = this.setupScanner();
-
+    //this.scanner = this.setupScanner();
     this.log.debug("Initialized accessory");
   }
 
@@ -37,7 +239,7 @@ class xiaomiDevice {
     if (this.useBatchUpdating && force === false) {
       return;
     }
-    this.publishValueToMQTT(this.temperatureMQTTTopic, this.temperature);
+    //this.publishValueToMQTT(this.temperatureMQTTTopic, this.temperature);
   }
 
   get temperature() {
@@ -56,7 +258,7 @@ class xiaomiDevice {
     if (this.useBatchUpdating && force === false) {
       return;
     }
-    this.publishValueToMQTT(this.humidityMQTTTopic, this.humidity);
+    //this.publishValueToMQTT(this.humidityMQTTTopic, this.humidity);
   }
 
   get humidity() {
@@ -75,7 +277,7 @@ class xiaomiDevice {
     if (this.useBatchUpdating && force === false) {
       return;
     }
-    this.publishValueToMQTT(this.batteryMQTTTopic, this.batteryLevel);
+    //this.publishValueToMQTT(this.batteryMQTTTopic, this.batteryLevel);
   }
 
   get batteryLevel() {
@@ -150,55 +352,7 @@ class xiaomiDevice {
     return this.lastBatchUpdatedAt + timeoutMilliseconds <= Date.now();
   }
 
-  setupScanner() {
-    const address = this.config.address;
-    if (address == null) {
-      this.log.warn(
-        "address option is not set. " +
-          "When running multiple sensors this will cause interference. " +
-          "See README for instructions."
-      );
-    }
-    const scanner = new Scanner(this.config.address, {
-      log: this.log,
-      forceDiscovering: this.config.forceDiscovering !== false,
-      restartDelay: this.config.forceDiscoveringDelay,
-      bindKey: this.config.bindKey
-    });
-	this.log.info("Name =" + this.config.name);
-	this.log.info("Address =" + this.config.address);
-	this.log.info("bindkey =" + this.config.bindKey);
-    scanner.on("temperatureChange", (temperature, peripheral) => {
-      const { address, id } = peripheral;
-      this.log.debug(`[${address || id}] Temperature: ${temperature}C`);
-      this.setTemperature(temperature);
-    });
-    scanner.on("humidityChange", (humidity, peripheral) => {
-      const { address, id } = peripheral;
-      this.log.debug(`[${address || id}] Humidity: ${humidity}%`);
-      this.setHumidity(humidity);
-    });
-    scanner.on("batteryChange", (batteryLevel, peripheral) => {
-      const { address, id } = peripheral;
-      this.log.debug(`[${address || id}] Battery level: ${batteryLevel}%`);
-      this.setBatteryLevel(batteryLevel);
-    });
-    scanner.on("change", () => {
-      if (this.isReadyForBatchUpdate() === false) {
-        return;
-      }
-      this.log.debug("Batch updating values");
-      this.lastBatchUpdatedAt = Date.now();
-      this.setTemperature(this.temperature, true);
-      this.setHumidity(this.humidity, true);
-      this.setBatteryLevel(this.batteryLevel, true);
-    });
-    scanner.on("error", error => {
-      this.log.error(error);
-    });
 
-    return scanner;
-  }
 
   hasTimedOut() {
     if (this.timeout === 0) {
@@ -216,54 +370,36 @@ class xiaomiDevice {
     }
     return timedOut;
   }
-
-  setupMQTTClient() {
-    const config = this.config.mqtt;
-    if (config == null || config.url == null) {
-      return;
-    }
-    const {
-      temperatureTopic,
-      humidityTopic,
-      batteryTopic,
-      url,
-      ...mqttOptions
-    } = config;
-
-    this.temperatureMQTTTopic = temperatureTopic;
-    this.humidityMQTTTopic = humidityTopic;
-    this.batteryMQTTTopic = batteryTopic;
-
-    const client = mqtt.connect(url, mqttOptions);
-    client.on("connect", () => {
-      this.log.info("MQTT Client connected.");
-    });
-    client.on("reconnect", () => {
-      this.log.debug("MQTT Client reconnecting.");
-    });
-    client.on("close", () => {
-      this.log.debug("MQTT Client disconnected");
-    });
-    client.on("error", error => {
-      this.log.error(error);
-      client.end();
-    });
-    return client;
-  }
-
-  publishValueToMQTT(topic, value) {
-    if (
-      this.mqttClient == null ||
-      this.mqttClient.connected === false ||
-      topic == null ||
-      value == null
-    ) {
-      return;
-    }
-    this.mqttClient.publish(topic, String(value), {
-      qos: this.config.mqtt.qos || 0,
-      retain: this.config.mqtt.retain || false
-    });
+  discoverDevices() {
+		this.scanner.on("temperatureChange", (temperature, peripheral) => {
+			const { address, id } = peripheral;
+			this.log.debug(`[${that.uniqueName}] Temperature: ${temperature}C`);
+			this.setTemperature(temperature);
+			});
+		this.scanner.on("humidityChange", (humidity, peripheral) => {
+			const { address, id } = peripheral;
+			this.log.debug(`[${that.uniqueName}] Humidity: ${humidity}%`);
+			this.setHumidity(humidity);
+		});
+		this.scanner.on("batteryChange", (batteryLevel, peripheral) => {
+			const { address, id } = peripheral;
+			this.log.debug(`[${that.uniqueName}] Battery level: ${batteryLevel}%`);
+			this.setBatteryLevel(batteryLevel);
+		});	
+		this.scanner.on("change", () => {
+			if (this.isReadyForBatchUpdate() === false) {
+				return;
+			}
+			this.log.debug(`[${that.uniqueName}]` + " Batch updating values");
+			this.lastBatchUpdatedAt = Date.now();
+			this.setTemperature(this.temperature, true);
+			this.setHumidity(this.humidity, true);
+			this.setBatteryLevel(this.batteryLevel, true);
+		});
+		this.scanner.on("error", error => {
+			this.log.error(`[${that.uniqueName}]` + " " + error);
+		});
+		//return scanner;
   }
 };
 module.exports = xiaomiDevice;

@@ -2,10 +2,11 @@
 	"bridgeEnabledTypes" : {
 							"YeeBTLamp" : {"enabled" : false, "agent" : "BluetoothAgent"}
 							,"YeeWifiLamp" : {"enabled" : false, "agent" : "YeeAgent"}
-							,"Playbulb" : {"enabled" : true, "agent" : "BluetoothAgent"}
+							,"Playbulb" : {"enabled" : false, "agent" : "BluetoothAgent"}
 							,"MiLight" : {"enabled" : false, "agent" : "MiAgent"}
 							,"iPhone" : {"enabled" : false, "agent" : "FindIphone"}
 							,"RFXDevice" : {"enabled" : false, "agent" : "RFXAgent"}
+							,"Xiaomi-bluetooth" : {"enabled" : true, "agent" : "BTScanner"}
 							},
 	"ServerPort" : 5183 ,
 	"DevicePortStart" : 5301,
@@ -41,6 +42,13 @@
 		, "commandRepeat" : 2
 		, "ignoreBlinds" : ["Blind 0x000005/2[2]"]
 		, "nameBlinds" : [{"uniqueName": "Blind 0x000005/1[1]", "friendlyName": "Blinds"}]
+	},
+	"Xiaomi-bluetooth" : {
+		"Properties" : ["fw_ver","model"]
+		, "ip" : "255.255.255.255"
+		, "delayBetweenCommands" : 80
+		, "commandRepeat" : 2
+		, "macZones" : [{"mac": "F0:FE:6B:4B:09:10", "zones": [0,2]}]
 	},
 	"YeeBTLamp" : {
 		"Properties" : ["fw_ver","model"]
