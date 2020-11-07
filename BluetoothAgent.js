@@ -2,6 +2,7 @@
 const maxDevices = 8;
 var Playbulb = require("./Playbulb");
 var YeeBTLamp = require("./YeeBTLamp");
+var Xiaomi = require("./BTaccessory");
 var properties = require ("./properties.json");
 exports.BluetoothAgent = function (handler) {
 	var that = this;
@@ -128,7 +129,9 @@ exports.BluetoothAgent = function (handler) {
 		} else if (type=="Playbulb") {
 			//console.log("DEBUG args=" + args + " sliced=" + args.slice[1]);
 			return new (Function.prototype.bind.apply(Playbulb.Playbulb, args));
-
+		} else if (type=="Xiaomi") {
+			//console.log("DEBUG args=" + args + " sliced=" + args.slice[1]);
+			return new (Function.prototype.bind.apply(Xiaomi.xiaomiDevice, args));
 		} else {
 			console.log("BluetoothAgent: createBulbObject: Unknown Type " + type)
 		}
@@ -144,7 +147,7 @@ exports.BluetoothAgent = function (handler) {
 					console.log("BluetoothAgent: findDevice: Found name=" + name + " pbDevice=" + this.btDevices[tmpPb].playbulbName)
 					obj=this.btDevices[tmpPb];
 				} else {
-					//console.log("BluetoothAgent: findDevice: didnt find name=" + name + " pbDevice=" + this.btDevices[tmpPb].playbulbName + " " + this.btDevices[tmpPb].uniqueName)
+					console.log("BluetoothAgent: findDevice: didnt find name=" + name + " pbDevice=" + this.btDevices[tmpPb].playbulbName + " " + this.btDevices[tmpPb].uniqueName)
 				}
 			}
 		}
