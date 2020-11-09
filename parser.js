@@ -56,7 +56,12 @@ class Parser {
     this.capabilities = this.parseCapabilities();
 
     if (this.frameControl.isEncrypted) {
-      this.decryptPayload();
+		try {
+			this.decryptPayload();
+		} catch (e) {
+		  console.log("ERROR " + e);
+		  //this.log.error(e);
+		}
     }
 
     this.eventType = this.parseEventType();

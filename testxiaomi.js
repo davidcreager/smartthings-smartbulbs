@@ -10,7 +10,8 @@ var log = new logs.Log("tester",false,true);
 //					options:{}}
 let testDevice = new dev({"address": "a4:c1:38:f7:92:27",
 							"bindKey": "eed67d3cec84bee92fd3a304978c76a0",
-							"log": log})
+							"log": log,
+							"options": {}})
 
 
 //console.log("enum warn = " + log.LogLevel.WARN);
