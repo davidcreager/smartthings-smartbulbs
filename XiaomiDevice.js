@@ -10,15 +10,8 @@ class XiaomiDevice {
 	this.scanner = scanner;
 	
 	var that = this;
-	this.type = pbType || "Unknown";
-	this.agent = agent;
-	this.smartType = "XiaomiDevice";
-	this.responds = "none";
 	this.deviceHandler = "Xiaomi Thermostat";
-	this.cbHandler = handler;
-	this.playbulbName = playbulbName;
-	this.friendlyName = this.playbulbName;
-	this.uniqueName=playbulbName + "(" + peripheral.uuid.toUpperCase() + ")"
+	this.cbHandler = config.handler;
 	this.characteristicsByName = {};
 	
 
@@ -180,34 +173,35 @@ class XiaomiDevice {
     return timedOut;
   }
   setupScanner() {
+		let that = this;
 		this.scanner.on("temperatureChange", (temperature, peripheral) => {
 			const { address, id } = peripheral;
-			this.log.debug(`[${that.uniqueName}] Temperature: ${temperature}C`);
-			this.setTemperature(temperature);
+			that.log.debug(`[${that.uniqueName}] Temperature: ${temperature}C`);
+			that.setTemperature(temperature);
 			});
 		this.scanner.on("humidityChange", (humidity, peripheral) => {
 			const { address, id } = peripheral;
-			this.log.debug(`[${that.uniqueName}] Humidity: ${humidity}%`);
-			this.setHumidity(humidity);
+			that.log.debug(`[${that.uniqueName}] Humidity: ${humidity}%`);
+			that.setHumidity(humidity);
 		});
 		this.scanner.on("batteryChange", (batteryLevel, peripheral) => {
 			const { address, id } = peripheral;
-			this.log.debug(`[${that.uniqueName}] Battery level: ${batteryLevel}%`);
-			this.setBatteryLevel(batteryLevel);
+			that.log.debug(`[${that.uniqueName}] Battery level: ${batteryLevel}%`);
+			that.setBatteryLevel(batteryLevel);
 		});	
 		this.scanner.on("change", () => {
-			if (this.isReadyForBatchUpdate() === false) {
+			if (that.isReadyForBatchUpdate() === false) {
 				return;
 			}
-			this.log.debug(`[${that.uniqueName}]` + " Batch updating values");
-			this.lastBatchUpdatedAt = Date.now();
-			this.setTemperature(this.temperature, true);
-			this.setHumidity(this.humidity, true);
-			this.setBatteryLevel(this.batteryLevel, true);
+			that.log.debug(`[${that.uniqueName}]` + " Batch updating values");
+			that.lastBatchUpdatedAt = Date.now();
+			that.setTemperature(that.temperature, true);
+			that.setHumidity(that.humidity, true);
+			that.setBatteryLevel(that.batteryLevel, true);
 		});
 		this.scanner.on("error", error => {
-			this.log.error(`[${that.uniqueName}]` + " " + error);
+			that.log.error(`[${that.uniqueName}]` + " " + error);
 		});
   }
 };
-module.exports = xiaomiDevice;
+module.exports = XiaomiDevice;
