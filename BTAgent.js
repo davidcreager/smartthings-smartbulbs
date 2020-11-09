@@ -1,6 +1,7 @@
-const { version } = require("../package.json");
+//const { version } = require("../package.json");
 const EventEmitter = require("events");
 const noble = require("@abandonware/noble");
+const XiaomiDevice = require("./XiaomiDevice");
 const { Parser, EventTypes, SERVICE_DATA_UUID } = require("./parser");
 //
 
@@ -12,10 +13,11 @@ const defaultTimeout = 15;
 //					options:{}}
 class Scanner extends EventEmitter {
   constructor(agentOptions) {
+	super();
 	var that = this;
-    super();
     agentOptions = agentOptions || {};
 	this.devices = {}; // Agent stuff
+	this.ignoredDevices = {};
 	this.handler = agentOptions.handler || null;
     this.log = agentOptions.log || console;
     this.address = agentOptions.address;
@@ -33,6 +35,9 @@ class Scanner extends EventEmitter {
     noble.on("scanStop", this.onScanStop.bind(this));
     noble.on("warning", this.onWarning.bind(this));
     noble.on("stateChange", this.onStateChange.bind(this));
+  }
+  handler() {
+	  this.log.error("Handler has been called");
   }
 
   start() {
@@ -83,9 +88,9 @@ class Scanner extends EventEmitter {
     const { advertisement: { serviceData } = {}, id, address } =
       peripheral || {};
     if (!this.isValidAddress(address) && !this.isValidAddress(id)) {
-		if ( (!ignoredDevices[address]) && (address) ) {
+		if ( (!this.ignoredDevices[address]) && (address) ) {
 			this.log.info("Ignoring address " + address);
-			ignoredDevices[address] = [peripheral];
+			this.ignoredDevices[address] = [peripheral];
 		}
 		return;
     }
@@ -98,8 +103,8 @@ class Scanner extends EventEmitter {
     if (result == null) {
       return;
     }
-	if  (!devices[address]) {
-		device[address] = new require("XiaomiDevice").xiaomiDevice(log,null,this);
+	if  (!this.devices[address]) {
+		this.devices[address] = new XiaomiDevice(this.log,{handler:this.handler},this);
 		this.log.info("Creating new device " + address);
 		//device[address].setupScanner();
 	}
