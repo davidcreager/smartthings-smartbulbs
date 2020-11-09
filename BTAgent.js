@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 //const { version } = require("../package.json");
 const EventEmitter = require("events");
 const noble = require("@abandonware/noble");
@@ -198,3 +199,205 @@ class Scanner extends EventEmitter {
 
 //exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, bri)
 module.exports = Scanner;
+=======
+//const { version } = require("../package.json");
+const EventEmitter = require("events");
+const noble = require("@abandonware/noble");
+const XiaomiDevice = require("./XiaomiDevice");
+const { Parser, EventTypes, SERVICE_DATA_UUID } = require("./parser");
+//
+
+const defaultTimeout = 15;
+//	AgentOptions = {type: "adverts|connected", log: null, 
+//					address: "uuid",
+//					bindKey: "",
+//					handler:null, 
+//					options:{}}
+class Scanner extends EventEmitter {
+  constructor(agentOptions) {
+	super();
+	var that = this;
+    agentOptions = agentOptions || {};
+	this.devices = {}; // Agent stuff
+	this.ignoredDevices = {};
+	this.handler = agentOptions.handler || null;
+    this.log = agentOptions.log || console;
+    this.address = agentOptions.address;
+    this.bindKey = agentOptions.bindKey;
+	const {forceDiscovering = true, restartDelay = 2500} = agentOptions.options;
+    this.forceDiscovering = forceDiscovering;
+    this.restartDelay = restartDelay;
+	
+    this.scanning = false;
+    this.configure();
+  }
+  configure() {
+    noble.on("discover", this.onDiscover.bind(this));
+    noble.on("scanStart", this.onScanStart.bind(this));
+    noble.on("scanStop", this.onScanStop.bind(this));
+    noble.on("warning", this.onWarning.bind(this));
+    noble.on("stateChange", this.onStateChange.bind(this));
+  }
+  handler() {
+	  this.log.error("Handler has been called");
+  }
+
+  start() {
+    this.log.info("Start scanning.");
+    try {
+      noble.startScanning([], true);
+      this.scanning = true;
+    } catch (e) {
+      this.scanning = false;
+      this.log.error(e);
+    }
+  }
+
+  stop() {
+    this.scanning = false;
+    noble.stopScanning();
+  }
+
+  onStateChange(state) {
+    if (state === "poweredOn") {
+      this.start();
+    } else {
+      this.log.info(`Stop scanning. (${state})`);
+      this.stop();
+    }
+  }
+
+  onWarning(message) {
+    this.log.info("Warning: ", message);
+  }
+
+  onScanStart() {
+    this.log.debug("Started scanning.");
+  }
+
+  onScanStop() {
+    this.log.info("Stopped scanning.");
+    // We are scanning but something stopped it. Restart scan.
+    if (this.scanning && this.forceDiscovering) {
+      setTimeout(() => {
+        this.log.debug("Restarting scan.");
+        this.start();
+      }, this.restartDelay);
+    }
+  }
+
+  onDiscover(peripheral) {
+    const { advertisement: { serviceData } = {}, id, address } =
+      peripheral || {};
+    if (!this.isValidAddress(address) && !this.isValidAddress(id)) {
+		if ( (!this.ignoredDevices[address]) && (address) ) {
+			this.log.info("Ignoring address " + address);
+			this.ignoredDevices[address] = [peripheral];
+		}
+		return;
+    }
+    const miServiceData = this.getValidServiceData(serviceData);
+    if (!miServiceData) {
+      return;
+    }
+    // ** DEBUG** this.logPeripheral({ peripheral, serviceData: miServiceData });
+    const result = this.parseServiceData(miServiceData.data);
+    if (result == null) {
+      return;
+    }
+	if  (!this.devices[address]) {
+		this.devices[address] = new XiaomiDevice(this.log,{handler:this.handler},this);
+		this.log.info("Creating new device " + address);
+		//device[address].setupScanner();
+	}
+    if (!result.frameControl.hasEvent) {
+      // ** DEBUG** this.log.debug("No event");
+      return;
+    }
+    const { eventType, event } = result;
+    switch (eventType) {
+      case EventTypes.temperature: {
+        const { temperature } = event;
+        this.emit("temperatureChange", temperature, { id, address });
+        break;
+      }
+      case EventTypes.humidity: {
+        const { humidity } = event;
+        this.emit("humidityChange", humidity, { id, address });
+        break;
+      }
+      case EventTypes.battery: {
+        const { battery } = event;
+        this.emit("batteryChange", battery, { id, address });
+        break;
+      }
+      case EventTypes.temperatureAndHumidity: {
+        const { temperature, humidity } = event;
+        this.emit("temperatureChange", temperature, { id, address });
+        this.emit("humidityChange", humidity, { id, address });
+        break;
+      }
+      case EventTypes.illuminance: {
+        const { illuminance } = event;
+        this.emit("illuminanceChange", illuminance, { id, address });
+        break;
+      }
+      case EventTypes.moisture: {
+        const { moisture } = event;
+        this.emit("moistureChange", moisture, { id, address });
+        break;
+      }
+      case EventTypes.fertility: {
+        const { fertility } = event;
+        this.emit("fertilityChange", fertility, { id, address });
+        break;
+      }
+      default: {
+        this.emit("error", new Error(`Unknown event type ${eventType}`));
+        return;
+      }
+    }
+    this.emit("change", event, { id, address });
+  }
+
+  cleanAddress(address) {
+    if (address == null) {
+      return address;
+    }
+    return address.toLowerCase().replace(/[:-]/g, "");
+  }
+
+  isValidAddress(address) {
+    return (
+      this.address == null ||
+      this.cleanAddress(this.address) === this.cleanAddress(address)
+    );
+  }
+
+  getValidServiceData(serviceData) {
+    return (
+      serviceData &&
+      serviceData.find(data => data.uuid.toLowerCase() === SERVICE_DATA_UUID)
+    );
+  }
+
+  parseServiceData(serviceData) {
+    try {
+      return new Parser(serviceData, this.bindKey).parse();
+    } catch (error) {
+      this.emit("error", error);
+    }
+  }
+
+  logPeripheral({peripheral: {address, id, rssi, advertisement: {localName}}, serviceData}){
+    this.log.debug(`[${address || id}] Discovered peripheral
+      Id: ${id}
+      LocalName: ${localName}
+      rssi: ${rssi}
+      serviceData: ${serviceData.data.toString("hex")}`);
+  }
+}
+
+//exports.YeeBTLamp = function ( YeeBTLampName, pbType, peripheral,handler,agent, bri)
+module.exports = Scanner;
+>>>>>>> 7411d3f26453b3b6a96fbd114788bdd7fb6655bc

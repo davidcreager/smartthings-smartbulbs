@@ -341,10 +341,11 @@ handleAgentEvents.onDevConnected = function(device){
 handleAgentEvents.onDevDisconnected = function(device){
 		console.log("smartserver:handleAgentEvents:onDevDisconnected: host:port=" + device.host + ":" + device.port + " " + device.did + 
 					" model=" + device.model + " bright:hue:sat=" + device.bright + ":" + device.hue + ":" + device.sat)
-};
+}; 
 handleAgentEvents.onDevPropChange = function(device, val){
 	if (val.type == "response") {
-		console.log("smartserver:onDevPropChange: response " + device.did + " ind=" + val.id + "result type=" + typeof(val.result) + " val: " + JSON.stringify(val));
+		console.log("smartserver:onDevPropChange: response " + device.did + " ind=" + val.id + 
+						"result type=" + typeof(val.result) + " val: " + JSON.stringify(val));
 		if (val.id){
 			if (responseStack[val.id]) {
 				if (val.error) {
@@ -403,7 +404,8 @@ function httpRequestHandler(req,resp) {
 	resp.on('error', function(err) {
 		console.error("smartserver:httpRequestHandler: response onerror:" + err);
 	});
-	function writeDiscoveryResp(resp, TypeOrBridgeName, uniqueName, friendlyName, ipAddress, port, othTags, sDevices, managedDevices  ) {
+	function writeDiscoveryResp(resp, TypeOrBridgeName, uniqueName, friendlyName,
+						ipAddress, port, othTags, sDevices, managedDevices  ) {
 				resp.writeHead(200, {"Content-Type": "text/xml"});
 				resp.write("<?xml version=\"1.0\"?> ");
 				resp.write("<root xmlns=\"urn:schemas-upnp-org:device:" + TypeOrBridgeName + ":1\">");
@@ -462,7 +464,8 @@ function httpRequestHandler(req,resp) {
 				if (url.pathname == "/subscription") {
 			//TODO sort this out
 					//var callbck = req.headers.callback
-					var callbck=URL.parse(req.headers.callback.substring(1,req.headers.callback.length-1), true,true);
+					var callbck=URL.parse(req.headers.callback.substring(1,req.headers.callback.length-1),
+											true,true);
 					//console.log("DEBUG: host=" + callbck.hostname + " port=" + callbck.port + " pathname=" + callbck.pathname + 
 					//					" callback=" + req.headers.callback.substring(1,req.headers.callback.length-1) );
 					smartSubscribers[smartDevice.uniqueName] = {};
@@ -543,22 +546,24 @@ function httpRequestHandler(req,resp) {
 						retObj.params = {};
 						if (smartDevice.smartType == "Playbulb") {
 							done=true;
-							async.eachSeries(properties[smartDevice.smartType]["Properties"], function(prop,cb){
+							async.eachSeries(properties[smartDevice.smartType]["Properties"],
+								function(prop,cb){
 									smartDevice.getAttribute(prop,"", function(error,data) {
-										if (error) {
-											retObj.params[prop] = "Error " + error;
-										} else {
-											retObj.params[prop] = data;
-										}
+											if (error) {
+												retObj.params[prop] = "Error " + error;
+											} else {
+												retObj.params[prop] = data;
+											}
 										//console.log("smartserver:httpRequestHandler:getProps in progress prop=" + prop + ":" + retObj.params[prop])
-										cb(null);
-									});
-							}, function(error){
-								console.log("smartserver:httpRequestHandler: finished getProps for " + smartDevice.friendlyName + " " + JSON.stringify(retObj))
-								resp.writeHead(200, {"Content-Type": "application/json"});
-								resp.write(JSON.stringify(retObj));
-								resp.end();
-							});
+											cb(null);
+										});
+								}, 
+								function(error){
+									console.log("smartserver:httpRequestHandler: finished getProps for " + smartDevice.friendlyName + " " + JSON.stringify(retObj))
+									resp.writeHead(200, {"Content-Type": "application/json"});
+									resp.write(JSON.stringify(retObj));
+									resp.end();
+								});
 						} else if (smartDevice.smartType == "YeeWifiLamp") {
 							console.log("smartserver:httpRequestHandler:Refresh unknown type " + smartDevice.smartType )
 							var tmpInd;
