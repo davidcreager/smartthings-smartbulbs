@@ -22,8 +22,13 @@ let devicePortCounter = properties.DevicePortStart
 console.log("Started");
 //let adverts = new devices.Advertiser();
 devices.Advertiser.configure({portCounter: 43000});
-let newDevice = new devices.BridgeDevice();
+let newDevice = new devices.BridgeDeviceHandler();
 newDevice.createHTTPServer();
+
+let newDevice1 = new devices.BTDeviceHandler();
+newDevice1.configure();
+newDevice1.discoverDevices();
+
 //adverts.configure({usn: "newUSN", urn: "newURN",bollocks: "bollocks"});
 /*
 devices.Advertiser.configure({usn: "newUSN", urn: "newURN",bollocks: "bollocks"});
