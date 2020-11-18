@@ -14,7 +14,7 @@ let deviceList = {};
 //const SERVICE_DATA_UUID = "fe95"
 //"YeeBTLamp RGBW Light", "Find Iphone","Playbulb RGBW Light", "Playbulb RGBW Light", "RFXCOM Somfy Blinds"
 //"YeeBTLamp", "iPhone", "MiLight", "Playbulb", "RFXDevice"
-
+let util = require("util");
 function dumpObject(name,obj){
 	let out = ""
 	for (let key in obj) {
@@ -31,10 +31,16 @@ const querystring = require('querystring');
 const noble = require("@abandonware/noble");
 const EventEmitter = require("events");
 
+const peripheralAddresses = {"PB_Sphere_4": "2a:cf:4b:16:ac:e6", 
+								"yeelight_ms": "f8:24:41:c0:51:71",
+								"LYWSD03MMC": "a4:c1:38:f7:92:27",
+								"XMCTD_": "f8:24:41:e9:0d:18"};
+								
+const allAddresses = ["2a:cf:4b:16:ac:e6","f8:24:41:c0:51:71","f8:24:41:e9:0d:18" ];
 
 const simpLog = function(typ,obj,newb) {
-	console.log(" cnt=" + classCounter + " Constructing a " + typ + " class=" + obj.constructor.name + 
-					" target=" + newb + " ssdpUSNPrefix=" + ssdpUSNPrefix + " ssdpUDN=" + ssdpUDN);
+	//console.log(" cnt=" + classCounter + " Constructing a " + typ + " class=" + obj.constructor.name + 
+	//				" target=" + newb + " ssdpUSNPrefix=" + ssdpUSNPrefix + " ssdpUDN=" + ssdpUDN);
 }
 class Advertiser {
 	constructor(staticStuff){
@@ -45,14 +51,16 @@ class Advertiser {
 		this.log.info = console.log;
 		this.log.warn = console.log;
 		this.log.debug = console.log;
+		this.noble = noble;
 	}
+								
 	static configure(config) {
 		({ssdpUSNPrefix = ssdpUSNPrefix, ssdpUDN = ssdpUDN, portCounter=6000} = config);
 		deviceList = {"WifiDeviceHandler":  WifiDeviceHandler, "BTDeviceHandler":  BTDeviceHandler, "ConnectableBTDeviceHandler":  ConnectableBTDeviceHandler};
 	}
 	processRequest(url,query){
 		nCalls++;
-		console.log("Did not expect to be here" + " thing=" + this.constructor.name + " # calls=" + nCalls);
+		consoleconsole.log("Advertiser.processRequest Did not expect to be here" + " thing=" + this.constructor.name + " # calls=" + nCalls);
 	}
 	httpRequestHandler(req,resp){
 		req.on("error",function(err){
@@ -68,7 +76,7 @@ class Advertiser {
 		});
 		let url = URL.parse(req.url, true);
 		let query = querystring.parse(url.query);
-		console.log("DEBUG url=" + JSON.stringify(req.url));
+		console.log("smartserver:httpRequestHandler: url=" + JSON.stringify(req.url));
 		
 		this.processRequest(url,query);
 		resp.writeHead(200, {"Content-Type": "application/json"});
@@ -102,14 +110,14 @@ class DeviceHandler extends Advertiser {
 	constructor(type,smartthingsDeviceHandler){
 		super();
 		this.port = portCounter;
-		this.type = "genericDice" || type;
+		this.type = "genericDevice" || type;
 		this.ssdpUSN = ssdpUSNPrefix + type;
 		this.smartThingsDeviceHandler = smartthingsDeviceHandler || ""
 		portCounter++;
 		simpLog("DeviceHandler",this, new.target.name);
 	}
 	processRequest (url,query){
-		console.log("I did want to be here");
+		console.log("DeviceHandler.processRequest I did want to be here");
 	}
 	createSSDP(){
 		this.SSDPServer = new SSDP({allowWildcards:true,sourcePort:1900,udn: this.uniqueName,
@@ -135,10 +143,21 @@ class BTDeviceHandler extends DeviceHandler {
 	constructor(type,smartthingsDeviceHandler){
 		super(type,smartthingsDeviceHandler);
 		this.discoverDevices = this.discoverDevices.bind(this);
+		this.writeBTCommand = this.writeBTCommand.bind(this);
 		simpLog("BTDeviceHandler",this, new.target.name);
 		this.forceDiscovering = null;
 		this.restartDelay = 2500;
 		this.discoveredPeripherals = {};
+		this.addresses = [];
+		//this.addresses = ["2a:cf:4b:16:ac:e6"]; // playbulb sphere PB_Sphere_4
+		this.addresses = ["f8:24:41:c0:51:71"]; // yeelight candela  yeelight_ms
+		//this.addresses = ["e5:53:e9:f9:11:37"]; // NO71W
+		//this.addresses = ["f8:24:41:e9:0d:18"]; // yeelight bedside XMCTD_
+		this.chars = [];
+		
+
+		//this.periph = {};
+		
 		this.powerState = "startUp";
 		this.scanState = "off";
 		this.startScanningTimer = null;
@@ -162,7 +181,8 @@ class BTDeviceHandler extends DeviceHandler {
 								scanNow = false;
 							}
 						});
-		console.log("scanNow =" + scanNow + " powerState =" + this.powerState + " scanState =" + this.scanState + " devsConnecting =" + devsConnecting);		
+		//console.log("discoverDevices: scanNow =" + scanNow + " powerState =" + this.powerState + " scanState =" + this.scanState + " devsConnecting =" + devsConnecting);		
+		process.stdout.write(".");
 		if (scanNow) {
 			if (this.startScanningTimer) {
 				this.startScanningTimer = null;
@@ -177,7 +197,7 @@ class BTDeviceHandler extends DeviceHandler {
 				this.startScanningTimer = setTimeout(this.discoverDevices, this.startScanningTimer );
 			}
 		} else {
-				console.log("BluetoothAgent:discoverDevices: Not scanning as devices are still connecting waiting 10sec " + devsConnecting)
+				console.log("discoverDevices: Not scanning as devices are still connecting waiting 10sec " + devsConnecting)
 				this.startScanningTimer = setTimeout(this.discoverDevices, 10000);
 		}
 	}
@@ -191,26 +211,172 @@ class BTDeviceHandler extends DeviceHandler {
 			this.log.error(e);
 		}
 	}
-	stop() {
+	stop(cb) {
 		this.scanning = false;
-		noble.stopScanning();
+		clearTimeout(this.startScanningTimer)
+		noble.stopScanning(cb);
+	}
+	writeBTCommand(arr) {
+		const buff =  Buffer.from(arr.fill(0x00,arr.length,36));
+		if (this.chars["COMMAND_CHARACT_UUID"]) {
+			console.log("writeBT: char=" + this.chars["COMMAND_CHARACT_UUID"]);
+			console.log("writeBT: arr= " + arr + " buff=" + buff.toString("hex"));
+			this.chars["COMMAND_CHARACT_UUID"].write(buff,false, (error) => {
+					if (error) {
+						console.log("writeBT: write error " + error);
+					} else {
+						console.log("writeBT: write success " + this.chars["COMMAND_CHARACT_UUID"]);
+					}
+				});
+		} else {
+			console.log("writeBT: Error write characteristic not set " );
+		}
+		
+	}
+	onConnect(peripheral) {
+		console.log("onConnect: " + peripheral.address + " self=" + this.type + " state=" + peripheral.state)
+		//8e2f0cbd1a664b53ace6b494e25f87bd yeelight
+		//peripheral.discoverAllServicesAndCharacteristics(function(error,services) {
+		//peripheral.discoverServices([], function(error,services) {
+		let self = this;
+		peripheral.discoverServices([], function(error,services) {
+			if (error) {
+				console.log("onConnect: discoverServices error getting services -" + error);
+			}
+			let srvs = ""
+			let infoService = null;
+			if (services.length>0) {
+				services.forEach( (serv) => {
+						srvs = ((srvs=="") ? serv.uuid : srvs + ", " + serv.uuid);
+						if (serv.uuid=="fe87") {
+							console.log("onConnect:discoverServices - found information service " + serv);
+							infoService = serv;
+						}
+				});
+			}
+			console.log("onConnect: got #" + services.length + " services " + srvs);
+			if (infoService) {
+				let tempchars = ['aa7d3f342d4f41e0807f52fbf8cf7443', '8f65073d9f574aaaafea397d19d5bbeb']
+				infoService.discoverCharacteristics(tempchars, function(err,chars){
+					if (err) {
+						console.log("onConnect: discoverCharacteristics error getting characteristic -" + err);
+						return;
+					}
+					console.log("onConnect: discoverCharacteristics " + chars.length + "# chars found [0]=" + chars[0]+ " [1]=" + chars[1]);
+					self.chars["COMMAND_CHARACT_UUID"] = chars[0];
+					self.chars["NOTIFY_CHARACT_UUID"] = chars[1];
+					self.chars["NOTIFY_CHARACT_UUID"].on("data", self.onNotify.bind(self));
+					self.chars["NOTIFY_CHARACT_UUID"].once("read",self.onNotify.bind(self));
+					self.chars["COMMAND_CHARACT_UUID"].once("write",self.onWrite.bind(self));
+					self.chars["NOTIFY_CHARACT_UUID"].subscribe( (error, data) => {
+								if (error) {
+									console.log("onConnect:discoverServices Error in subscribe " + error);
+								} else {
+									console.log("onConnect:discoverServices Debug in subscribe function " + error + " data=" + data);
+								}
+								self.chars["COMMAND_CHARACT_UUID"].once("write", () => {
+										self.onWrite.bind(self,chars[1])
+									});
+								self.writeBTCommand([0x43,0x67,0xde,0xad,0xbe,0xbf,0x00]);
+							});					
+				});
+			} else {
+				console.log("onConnect: discoverCharacteristics infoservice not set");
+			}
+		}); // */
+		
+		/* peripheral.discoverServices(['8e2f0cbd1a664b53ace6b494e25f87bd'], function(error,services) {
+			console.log("onConnect: in on discovering infoService");
+			if (error) {
+				console.log("onConnect:discoverServices error " + error);
+				return null;
+			} else {
+				console.log("onConnect:discoverServices " + services.length + " found [0] is " + services[0] );
+			}
+			let infoService = services[0];
+			let tempchars = ['aa7d3f342d4f41e0807f52fbf8cf7443', '8f65073d9f574aaaafea397d19d5bbeb']
+			infoService.discoverCharacteristics(tempchars, function(err,chars){
+				if (err) {
+					console.log("onConnect: discoverCharacteristics error getting characteristic -" + err);
+					return;
+				}
+				console.log("onConnect: discoverCharacteristics " + chars.length + "# chars found [0]=" + chars[0]+ " [1]=" + chars[1]);
+				self.chars["COMMAND_CHARACT_UUID"] = chars[0];
+				self.chars["NOTIFY_CHARACT_UUID"] = chars[1];
+				self.chars["NOTIFY_CHARACT_UUID"].on("data", (data, isNotify) => {
+							self.onNotify.bind(self, data, isNotify,chars[1])
+							});
+				self.chars["NOTIFY_CHARACT_UUID"].once("read", (data, isNotify) => {
+							self.onNotify.bind(self, data, isNotify,chars[1])
+							});
+				self.chars["COMMAND_CHARACT_UUID"].once("write", () => {
+							self.onWrite.bind(self,chars[1])
+							});
+				//self.writeBTCommand([0x43,0x67,0xde,0xad,0xbe,0xbf,0x00]);
+				chars[1].subscribe( (error, data) => {
+							if (error) {
+								console.log("onConnect:discoverServices Error in subscribe " + error);
+							} else {
+								console.log("onConnect:discoverServices Debug in subscribe function " + error + " data=" + data);
+							}
+						});
+					});
+			if (error) {
+				console.log("onConnect: Discover error in infoservice discovery");
+				return null;
+			}
+			//Discoverservices #=7 , 1801, 1800, 00001016d10211e19b2300025b00a5a5, ff0f, 180f, fef1, 180a - playbulb
+			//Discoverservices #=4 , 1800, 180a, 000102030405060708090a0b0c0d1910, fe87 - candela
+			let srvs="";
+			services.forEach( (srv) => srvs = (srvs="" ? srv.uuid : srvs + ", " + srv.uuid) );
+			console.log("onConnect: Discoverservices infoservice #=" + services.length + " " + srvs);
+			return services;
+		}); // */
+	}
+	onDisconnect(peripheral) {
+		console.log("onDisconnect - " + peripheral.address + " self=" + this.type)
 	}
 	onDiscover(peripheral) {
+		//this.periph = peripheral;
+		//console.log("onDiscover - " + peripheral.address + " self=" + this.type + " state=" + peripheral.state)
 		const { advertisement: { serviceData } = {}, id, address } =
 				peripheral || {};
-
+		if (peripheral.state=="connected") {
+			console.log("onDiscover: disconnecting " + peripheral.address);
+			peripheral.disconnect();
+		}
 		if (!this.discoveredPeripherals[peripheral.address]) {
-			dumpPeripheral(peripheral);
+			console.log("onDiscover - " + peripheral.address + " self=" + this.type + 
+						" name=" + peripheral.advertisement.localName + " state=" + peripheral.state)
+			if (this.addresses.includes(peripheral.address)) {
+				console.log("onDiscover: Address found");
+				dumpPeripheral(peripheral);
+				peripheral.once('disconnect',this.onDisconnect.bind(this, peripheral));
+				peripheral.once('connect',this.onConnect.bind(this, peripheral));
+				console.log("onDiscover: about to try connecting");
+				//this.noble.reset();
+				this.stop(() => {
+					peripheral.connect( function( error ) {
+						if (error) {
+							console.log("onDiscover: Connect error");s
+							return null;
+						}
+						console.log("onDiscover: Connected - address=" + peripheral.address + " state= " + peripheral.state);
+					}); // */
+				});
+			} else if (this.addresses.length==0) {
+				dumpPeripheral(peripheral);
+			}
 			this.discoveredPeripherals[peripheral.address] = peripheral;
 		}
 	}
 	onScanStart() {
-		this.log.debug("Started scanning.");
+		this.log.debug("onScanStart - Started scanning.");
 		this.scanState = "on";
 	}
 	onScanStop() {
-		this.log.info("Stopped scanning.");
-		this.scanState = "on";
+		this.log.info("onScanStop - Stopped scanning.");
+		this.scanState = "off";
 		if (this.scanning && this.forceDiscovering) {
 			setTimeout(() => {
 				this.log.debug("Restarting scan.");
@@ -219,13 +385,25 @@ class BTDeviceHandler extends DeviceHandler {
 		}
 	}
 	onWarning(message) {
-		this.log.info("Warning message =" + message);
+		this.log.info("onWarning - Warning message =" + message);
+	}
+	onNotify(data, isNotify) {
+		let packetType = data.toString('hex').substring(2,4);
+		console.log('onNotify: DEBUG : (packet type)' + packetType);
+		this.log.info("onNotify: isNotify=" + isNotify + " data=" + data.toString("hex"));
+		if (packetType == '63') {
+			this.writeBTCommand([0x43,0x67,0xde,0xad,0xbe,0xbf,0x00]);
+			this.writeBTCommand([0x43,0x40,0x02]);
+		}
+	}
+	onWrite(data) {
+		this.log.info("onWrite data=" + data);
 	}
 	onStateChange(state) {
 		if (state === "poweredOn") {
 			this.start();
 		} else {
-			this.log.info(`Stop scanning. (${state})`);
+			this.log.info(`onStateChange - Stop scanning. (${state})`);
 			this.stop();
 		}
 	}
@@ -238,11 +416,11 @@ class ConnectableBTDeviceHandler extends BTDeviceHandler {
 }
 const DeviceFactory = function(type) {
 		if ( (type) && (deviceList[type]) ) {
-			console.log("Device Factory doing its thing for " + type);
+			console.log("DeviceFactory: Device Factory doing its thing for " + type);
 			return  deviceList[type];
 		}
 		else {
-			console.log("ERROR ERROR " + type)
+			console.log("DeviceFactory: ERROR ERROR " + type)
 			return new Device;
 		}
 	//}
@@ -270,12 +448,13 @@ function dumpPeripheral(peripheral) {
 		//srvs = (srvs=="") ? JSON.stringify(item) : srvs + ", " + JSON.stringify(item);
 		srvs = (srvs=="") ? item.uuid : srvs + ", " + item.uuid;
 	});
-	
+	let mData = ((peripheral.advertisement.manufacturerData) ? peripheral.advertisement.manufacturerData.toString('hex') : "none")
 	console.log('peripheral=' + peripheral.id +
 			  ' address <' + peripheral.address +  ', ' + peripheral.addressType + '>,' +
 			  ' connect? ' + peripheral.connectable + ',' +
 			  ' RSSI=' + peripheral.rssi + 
-			  ' LocalName=' + peripheral.advertisement.localName
+			  ' LocalName=' + peripheral.advertisement.localName +
+			  ' Manudata=' + mData
 			  );
 
 	/*					
@@ -294,6 +473,46 @@ function dumpPeripheral(peripheral) {
 	if (peripheral.advertisement.txPowerLevel !== undefined) {
 		console.log('TX Power:\t' + peripheral.advertisement.txPowerLevel);
 	}	
+	
+	this.yeeServices = [];
+	this.btBaseUUID = "xxxxxxxx-0000-1000-8000-00805F9B34FB"
+	this.yeeCharacteristics = [	{id:"aa7d3f342d4f41e0807f52fbf8cf7443", type:"ReadWrite"},
+								{id:"8f65073d9f574aaaafea397d19d5bbeb", type:"Notify"} ];
+	this.yeeCommands = [	{name:"on", code:[0x43,0x40,0x01]},
+							{name:"off", code:[0x43,0x40,0x02]},
+							{name:"setBright", code:[0x43,0x40,0x00]},
+							{name:"setColor", code:[0x43,0x41,0x02,0x00,0x00,0xFF,0x65]},
+							{name:"setCT", code:[0x43,0x43,0x00,0x00,0x00]},
+							{name:"auth", code:[0x43,0x67,0xDE,0xAD,0xBE,0xBF]},
+							{name:"status", code:[0x43,0x44,0x00,0x00,0x00]},
+							{name:"temperature", code:[0x43,0x43,0x00,0x00,0x00]},
+							{name:"rgb", code:[0x43,0x41,0x00,0x00,0x00]},
+							{name:"pair", code:[0x43,0x67,0x02,0x00,0x00]},
+							{name:"name", code:[0x43,0x52,0x00,0x00,0x00]},
+							{name:"disconnect", code:[0x43,0x68,0x00,0x00,0x00]},
+							{name:"stats", code:[0x43,0x8C,0x00,0x00,0x00]} ]
+	this.playbulbCharacteristics = [ {serviceUUID: "ff02", charUUID: "fffc", type:"Current Color"},
+									{serviceUUID: "ff02", charUUID: "ffff", type:"Candle Name"},
+									{serviceUUID: "ff02", charUUID: "fffb", type:"Candle Name"},
+									{serviceUUID: "180f", charUUID: "2a19", type:"batteryLevel"} ];
+	this.playbulbUUIDs = 			[ 	{name:"DEVICE_INFORMATION_UUID",uuid:"180a"},
+										{name:"SYSTEM_ID_UUID",uuid:"2a23"},
+										{name:"MODEL_NUMBER_UUID",uuid:""},
+										{name:"SERIAL_NUMBER_UUID",uuid:""},
+										{name:"FIRMWARE_REVISION_UUID",uuid:""},
+										{name:"HARDWARE_REVISION_UUID",uuid:""},
+										{name:"SOFTWARE_REVISION_UUID",uuid:"2a28"},
+										{name:"MANUFACTURER_NAME_UUID",uuid:"2a29"} ];
+									['aa7d3f342d4f41e0807f52fbf8cf7443', '8f65073d9f574aaaafea397d19d5bbeb']
+	this.yeebtUUIDs = 			[ 	{name:"COMMAND_CHARACT_UUID",uuid:"180a"},
+									{name:"COMMAND_CHARACT_UUID",uuid:"0xaa7d3f342d4f41e0807f52fbf8cf7443"},
+									{name:"SERVICE_UUID",uuid:"0x8e2f0cbd1a664b53ace6b494e25f87bd"},
+									{name:"NOTIFY_CHARACT_UUID",uuid:"0x8f65073d9f574aaaafea397d19d5bbeb"} ];
+	this.candela = 			[ 	{name:"COMMAND_CHARACT_UUID",uuid:"180a"},
+									{name:"COMMAND_CHARACT_UUID",uuid:"0xaa7d3f342d4f41e0807f52fbf8cf7443"},
+									{name:"SERVICE_UUID",uuid:"fe87"},
+									{name:"NOTIFY_CHARACT_UUID",uuid:"0x8f65073d9f574aaaafea397d19d5bbeb"} ];
+	
 		*/
 }
 

@@ -1,4 +1,3 @@
-console.log("Trying to get ssdps")
 //response.ST = urn:schemas-upnp-org:device:SmartBridge:1
 //response.ST = urn:schemas-upnp-org:device:RFXDevice:1
 //
