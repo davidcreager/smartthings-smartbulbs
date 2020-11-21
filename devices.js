@@ -14,7 +14,6 @@ let deviceList = {};
 //const SERVICE_DATA_UUID = "fe95"
 //"YeeBTLamp RGBW Light", "Find Iphone","Playbulb RGBW Light", "Playbulb RGBW Light", "RFXCOM Somfy Blinds"
 //"YeeBTLamp", "iPhone", "MiLight", "Playbulb", "RFXDevice"
-let util = require("util");
 function dumpObject(name,obj){
 	let out = ""
 	for (let key in obj) {
@@ -23,13 +22,17 @@ function dumpObject(name,obj){
 	}
 	console.log("object " + name + " = " + out);
 }
+const util = require("util");
 const http = require('http');
 const SSDP = require('node-ssdp').Server;
 const ip=require("ip");
 const URL = require('url');
 const querystring = require('querystring');
-const noble = require("@abandonware/noble");
 const EventEmitter = require("events");
+
+const {createBluetooth} = require('node-ble')
+const {bluetooth, destroy} = createBluetooth()
+
 
 const peripheralAddresses = {"PB_Sphere_4": "2a:cf:4b:16:ac:e6", 
 								"yeelight_ms": "f8:24:41:c0:51:71",
@@ -51,7 +54,6 @@ class Advertiser {
 		this.log.info = console.log;
 		this.log.warn = console.log;
 		this.log.debug = console.log;
-		this.noble = noble;
 	}
 								
 	static configure(config) {
@@ -142,6 +144,11 @@ class WifiDeviceHandler extends DeviceHandler {
 class BTDeviceHandler extends DeviceHandler {
 	constructor(type,smartthingsDeviceHandler){
 		super(type,smartthingsDeviceHandler);
+		this.adapter = {};
+		this.devices = {);
+		this.macs = [
+		
+		
 		this.discoverDevices = this.discoverDevices.bind(this);
 		this.writeBTCommand = this.writeBTCommand.bind(this);
 		simpLog("BTDeviceHandler",this, new.target.name);
