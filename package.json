@@ -16,20 +16,26 @@
   "license": "ISC",
   "dependencies": {
     "@abandonware/noble": "^1.9.2-10",
+    "advlib": "^1.0.0",
+    "advlib-ble": "^1.0.0",
+    "advlib-ble-manufacturers": "^1.0.0",
+    "advlib-ble-services": "^1.0.0",
     "async": "^2.4.1",
     "chalk": "^4.1.0",
     "color-convert": "^1.9.0",
     "ip": "^1.1.5",
+    "max-listeners-exceeded-warning": "0.0.1",
     "mqtt": "^4.2.4",
+    "node-ble": "^1.2.0",
     "node-milight-promise": "^0.2.32",
     "node-ssdp": "^3.2.1",
+    "regex": "^0.1.1",
     "request": "^2.83.0",
     "rfxcom": "",
     "tough-cookie": "^2.3.3",
     "util": "^0.10.3",
-    "uuid": "^3.0.1"
+    "uuid": "^3.4.0"
   },
-  "devDependencies": {},
   "repository": {
     "type": "git",
     "url": "git+https://github.com/davidcreager/smartthings-smartbulbs.git"

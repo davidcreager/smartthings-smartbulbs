@@ -34,6 +34,7 @@ const EventTypes = {
 
 class Parser {
   constructor(buffer, bindKey = null) {
+	  //console.log("parser\t\t buffer=" + buffer.toString("hex") + "\t bindkey=" + bindKey);
     this.baseByteLength = 5;
     if (buffer == null) {
       throw new Error("A buffer must be provided.");
@@ -54,19 +55,28 @@ class Parser {
     this.frameCounter = this.parseFrameCounter();
     this.macAddress = this.parseMacAddress();
     this.capabilities = this.parseCapabilities();
-
     if (this.frameControl.isEncrypted) {
+		//console.log("parser\t encrypted");
 		try {
 			this.decryptPayload();
 		} catch (e) {
 		  console.log("ERROR " + e);
 		  //this.log.error(e);
 		}
-    }
+    } else {
+		//console.log("parser\t\t NOT encrypted");
+	}
 
     this.eventType = this.parseEventType();
     this.eventLength = this.parseEventLength();
     this.event = this.parseEventData();
+	/* if (this.frameControl.isEncrypted) {
+		console.log("parser\t\t ENCRYPTED productID=" + this.productId + " frameCounter=" + this.frameCounter +
+					" macAddress=" + this.macAddress + " eventType=" + this.eventType);
+	} else {
+		console.log("parser\t\t NOT ENCRYPTED productID=" + this.productId + " frameCounter=" + this.frameCounter +
+					" macAddress=" + this.macAddress + " eventType=" + this.eventType);
+	} */	
     return {
       frameControl: this.frameControl,
       event: this.event,
