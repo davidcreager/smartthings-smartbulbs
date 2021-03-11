@@ -48,10 +48,6 @@ const simpLog = function(typ,obj,newb) {
 let log = {};
 let portCounter;
 let serverPort;
-let mqttServer= "mqtt://192.168.1.144";
-let mqttPort = 1883;
-let mqttTopic = "smartserver/";
-let mqttClient = null;
 
 class Advertiser extends EventEmitter {
 	constructor(staticStuff){
@@ -61,7 +57,6 @@ class Advertiser extends EventEmitter {
 			log = staticStuff.log || console;
 			portCounter = staticStuff.portCounter || 6000;
 			serverPort = staticStuff.serverPort || 6500;
-			( {mqttPort, mqttTopic, mqttServer} = staticStuff["mqt"] );
 		}
 		this.httpRequestHandler = this.httpRequestHandler.bind(this);
 		if (!log.info) log.info = console.log;
@@ -98,27 +93,7 @@ class Advertiser extends EventEmitter {
 		resp.write("I'm here " + " url=" + JSON.stringify(url) + " query=" + JSON.stringify(query));
 		resp.end();
 	}
-	startMQTT(){
-		const client = mqtt.connect(mqttServer);
-		client.on("connect", () => {
-		  this.log.info("MQTT Client connected.");
-		});
-		client.on("reconnect", () => {
-		  this.log.debug("MQTT Client reconnecting.");
-		});
-		client.on("close", () => {
-		  this.log.debug("MQTT Client disconnected");
-		});
-		client.on("error", error => {
-		  this.log.error(error);
-		  client.end();
-		});
-		log.info("MQTTClient" , " running on " + mqttServer + ":" + mqttPort + " with topic " + mqttTopic);
-		return client;
-	}
-	publishMQTTMessage(topic,msg){
-		this.mqttClient.publish(topic, String(msg));
-	}
+
 }
 class BridgeDeviceHandler extends Advertiser{
 	constructor(port){
@@ -295,12 +270,9 @@ class XiaomiThermostat extends EventEmitter {
 		this.batteryLevel = null;
 		this.lastUpdatedAt = undefined;
 		this.dev = dev;
-		this.dev.helper.on("PropertiesChanged", (changedProps) => {
-			for ( let prop in changedProps ) {
-			  if (prop=="ServiceData") {
-				  this.handleSData(changedProps["ServiceData"].value);
-			  }
-			}
+		this.dev.on("ServiceData",(changedProps) => {
+			//console.log("XiaomiThermostat " + id + " received  ServiceData event  " + changedProps["ServiceData"])
+			this.handleSData(changedProps["ServiceData"].value);
 		});
 	}
 	setDeviceProp(propName, value) {
@@ -316,22 +288,68 @@ class XiaomiThermostat extends EventEmitter {
 			console.log("XiaomiThermostat\t " + propName + " oldValue=" + this.properties[propName].value + " newValue=" + value + " test=" + (this.properties[propName].value != value));
 		}
 	}
+	setTemperature(newValue) {
+		let oldValue = this.temperature;
+		if ((newValue) && (newValue!=oldValue) ) {
+			console.log("XiaomiThermostat\t setTemperature\t emitting change at " + Date.now().toLocaleString()+ " newvalue = " + newValue + " oldValue=" + oldValue);
+			this.emit("change", newValue, {"type": "setTemperature", "id": this.id, "oldvalue": oldValue, "time": Date.now() })
+		}
+		if (newValue) {
+			this.temperature = newValue;
+			this.lastUpdatedAt = Date.now();
+		}
+	}
+	setHumidity(newValue) {
+		let oldValue = this.humidity;
+		if ((newValue) && (newValue!=oldValue) ) {
+			console.log("XiaomiThermostat\t setHumidity\t emitting change at " + Date.now().toLocaleString() + " newvalue = " + newValue + " oldValue=" + oldValue);
+			this.emit("change", newValue, {"type": "setHumidity", "id": this.id, "oldvalue": oldValue, "time": Date.now() })
+		}
+		if (newValue) {
+			this.humidity = newValue;
+			this.lastUpdatedAt = Date.now();
+		}
+	}
+	setBatteryLevel(newValue) {
+		let oldValue = this.batteryLevel;
+		if ((newValue) && (newValue!=oldValue) ) {
+			console.log("XiaomiThermostat\t setBatteryLevel\t emitting change at " + Date.now().toLocaleString()+ " newvalue = " + newValue + " oldValue=" + oldValue);
+			this.emit("change", newValue, {"type": "setBatteryLevel", "id": this.id, "oldvalue": oldValue, "time": Date.now() })
+		}
+		if (newValue) {
+			this.batteryLevel = newValue;
+			this.lastUpdatedAt = Date.now();
+		}
+	}
 	handleSData(sdata){
+		let unparsed = null;
 		for (let uuid in sdata) {
-			const unparsed = new Buffer.from(sdata[uuid].value);
-			const parsed = new Parser(unparsed,this.bindKey).parse();
-			if (parsed && parsed.frameControl.hasEvent) {
-				const events = this.parseServiceEvent(parsed);
-				const now = new Date(Date.now());
+			unparsed = new Buffer.from(sdata[uuid].value);
+		}
+		const parsed = new Parser(unparsed,this.bindKey).parse();
+		if (parsed && parsed.frameControl.hasEvent) {
+			const events = this.parseServiceEvent(parsed);
+			if (Array.isArray(events)) {
 				events.forEach( (event) => {
-					console.log("XiaomiThermostat\t handleSData \t id=" + this.id + " eventType=" + event.evType + " value=" + event.value + " " +
-									now.toLocaleDateString() + " " + now.toLocaleTimeString() + " fc=" + parsed.frameCounter)
+					console.log("XiaomiThermostat\t handleSData\t id=" + this.id + " eventType=" + event.evType + " value=" + event.value + " fc=" + parsed.frameCounter)
+					//if (this.eventHandlers[event.evType]) {
+						//this.eventHandlers[event.evType](event.value);
 					if (this.eventToPropertyMapping[event.evType]) {
 						this.setDeviceProp(this.eventToPropertyMapping[event.evType],event.value);
 					} else {
 						console.log("handleSData\t id=" + this.id + " eventType=" + event.evType + " Handler not found");
 					}
 				});
+			} else {
+				console.log("handleSData\t id=" + this.id + " eventType=" + events.evType + " value=" + events.value + " fc="  + parsed.frameCounter)
+					//if (this.eventHandlers[events.evType]) {
+						//this.eventHandlers[events.evType](events.value);
+					if (this.eventToPropertyMapping[events.evType]) {
+						console.log("about to call setDeviceProp from eventS mapping for " + events.evType  + " is " + this.eventToPropertyMapping[events.evType]);
+						this.setDeviceProp( this.eventToPropertyMapping[events.evType], events.value );
+					} else {
+						console.log("handleSData\t id=" + this.id + " eventType=" + events.evType + " Handler not found");
+					}
 			}
 		}
 	}
@@ -345,31 +363,93 @@ class XiaomiThermostat extends EventEmitter {
 			return
 		}
 	}
+	async pollForUpdates(){
+		console.log("pollForUpdates\t starts id=" + this.id);
+		process.stdout.write(".");
+		let state = "about to get device"
+		try {
+			//console.log("Before dev has " + this.dev.listenerCount("ServiceData") + " listeners");
+			this.dev = await gAdapter.waitDevice(this.id);
+			this.dev.on("ServiceData",(changedProps) => {
+				console.log("XiaomiThermostat " + id + " received  ServiceData event  " + changedProps["ServiceData"])
+				this.handleSData(changedProps["ServiceData"].value);
+			});
+			//console.log("After dev has " + this.dev.listenerCount("ServiceData") + " listeners");
+			state = "about to get sdata"
+			let sdata = await this.dev.getServiceData();
+			let unparsed = null;
+			for (let uuid in sdata) {
+				unparsed = new Buffer.from(sdata[uuid].value);
+			}
+			const parsed = new Parser(unparsed,this.bindKey).parse();
+			if (parsed && parsed.frameControl.hasEvent) {
+				const events = this.parseServiceEvent(parsed);
+				if (Array.isArray(events)) {
+					events.forEach( (event) => {
+						console.log("pollForUpdates\t id=" + this.id + " eventType=" + event.evType + " value=" + event.value + event.frameCounter)
+					});
+				} else {
+					console.log("pollForUpdates\t id=" + this.id + " eventType=" + events.evType + " value=" + events.value +  + events.frameCounter)
+				}
+			}
+		} catch (err) {
+				console.log(this.id + " error " + state + " " + err )
+				return
+		}
+		//console.log("DEBUG sdata=" + JSON.stringify(sdata));
+
+	}
 	parseServiceEvent(result) {
 		const { eventType, event } = result;
-		if (eventType == EventTypes.temperature) {
+		switch (eventType) {
+		  case EventTypes.temperature: {
 			const { temperature } = event;
-			return [{"evType":"temperatureChange", "value": temperature}]
-		} else if (eventType == EventTypes.humidity) {
+			return {"evType":"temperatureChange", "value": temperature}
+			//this.emit("temperatureChange", temperature, { id, address });
+			break;
+		  }
+		  case EventTypes.humidity: {
 			const { humidity } = event;
-			return [{"evType":"humidityChange", "value": humidity}]
-		} else if (eventType == EventTypes.battery) {
+			return {"evType":"humidityChange", "value": humidity}
+			//this.emit("humidityChange", humidity, { id, address });
+			break;
+		  }
+		  case EventTypes.battery: {
 			const { battery } = event;
-			return [{"evType":"batteryChange", "value": battery}]
-		} else if (eventType == EventTypes.temperatureAndHumidity) {
+			return {"evType":"batteryChange", "value": battery}
+			//this.emit("batteryChange", battery, { id, address });
+			break;
+		  }
+		  case EventTypes.temperatureAndHumidity: {
 			const { temperature, humidity } = event;
 			return [{"evType":"temperatureChange", "value": temperature},{"evType":"humidityChange", "value": humidity}]
-		} else if (eventType == EventTypes.illuminance) {
+			//this.emit("temperatureChange", temperature, { id, address });
+			//this.emit("humidityChange", humidity, { id, address });
+			break;
+		  }
+		  case EventTypes.illuminance: {
 			const { illuminance } = event;
-			return [{"evType":"illuminanceChange", "value": illuminance}]
-		} else if (eventType == EventTypes.moisture) {
+			return {"evType":"illuminanceChange", "value": illuminance}
+			//this.emit("illuminanceChange", illuminance, { id, address });
+			break;
+		  }
+		  case EventTypes.moisture: {
 			const { moisture } = event;
-			return [{"evType":"moistureChange", "value": moisture}]
-		} else if (eventType == EventTypes.fertility) {
+			return {"evType":"moistureChange", "value": moisture}
+			//this.emit("moistureChange", moisture, { id, address });
+			break;
+		  }
+		  case EventTypes.fertility: {
 			const { fertility } = event;
-			return [{"evType":"fertilityChange", "value": fertility}]
-		} else {
-			return [{"evType":null, "value": (`Unknown event type ${eventType}`)}]
+			return {"evType":"fertilityChange", "value": fertility}
+			//this.emit("fertilityChange", fertility, { id, address });
+			break;
+		  }
+		  default: {
+			return {"evType":"error", "value": (`Unknown event type ${eventType}`)}
+			//this.emit("error", new Error(`Unknown event type ${eventType}`));
+			return;
+		  }
 		}
 	}
 }

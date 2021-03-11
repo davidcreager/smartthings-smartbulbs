@@ -52,10 +52,10 @@ let mqttServer= "mqtt://192.168.1.144";
 let mqttPort = 1883;
 let mqttTopic = "smartserver/";
 let mqttClient = null;
-
 class Advertiser extends EventEmitter {
 	constructor(staticStuff){
 		super();
+		console.log(JSON.stringify(staticStuff));
 		classCounter++;
 		if (staticStuff) {
 			log = staticStuff.log || console;
@@ -78,26 +78,6 @@ class Advertiser extends EventEmitter {
 		nCalls++;
 		console.log("Advertiser.processRequest Did not expect to be here" + " thing=" + this.constructor.name + " # calls=" + nCalls);
 	}
-	httpRequestHandler(req,resp){
-		req.on("error",function(err){
-			console.error("smartserver:httpRequestHandler: request onerror:" + err);
-			resp.statusCode = 400;
-			resp.end();
-		})
-		resp.on('finish', function(err) {
-			//console.error("smartserver:httpRequestHandler: Debug Finish event "+ retProps(err,true) );
-		});
-		resp.on('error', function(err) {
-			console.error("smartserver:httpRequestHandler: response onerror:" + err);
-		});
-		let url = URL.parse(req.url, true);
-		let query = querystring.parse(url.query);
-		console.log("smartserver:httpRequestHandler: url=" + JSON.stringify(req.url));
-		this.processRequest(url,query);
-		resp.writeHead(200, {"Content-Type": "application/json"});
-		resp.write("I'm here " + " url=" + JSON.stringify(url) + " query=" + JSON.stringify(query));
-		resp.end();
-	}
 	startMQTT(){
 		const client = mqtt.connect(mqttServer);
 		client.on("connect", () => {
@@ -119,6 +99,27 @@ class Advertiser extends EventEmitter {
 	publishMQTTMessage(topic,msg){
 		this.mqttClient.publish(topic, String(msg));
 	}
+	httpRequestHandler(req,resp){
+		req.on("error",function(err){
+			console.error("smartserver:httpRequestHandler: request onerror:" + err);
+			resp.statusCode = 400;
+			resp.end();
+		})
+		resp.on('finish', function(err) {
+			//console.error("smartserver:httpRequestHandler: Debug Finish event "+ retProps(err,true) );
+		});
+		resp.on('error', function(err) {
+			console.error("smartserver:httpRequestHandler: response onerror:" + err);
+		});
+		let url = URL.parse(req.url, true);
+		let query = querystring.parse(url.query);
+		console.log("smartserver:httpRequestHandler: url=" + JSON.stringify(req.url));
+		this.processRequest(url,query);
+		resp.writeHead(200, {"Content-Type": "application/json"});
+		resp.write("I'm here " + " url=" + JSON.stringify(url) + " query=" + JSON.stringify(query));
+		resp.end();
+	}
+
 }
 class BridgeDeviceHandler extends Advertiser{
 	constructor(port){
@@ -295,16 +296,11 @@ class XiaomiThermostat extends EventEmitter {
 		this.batteryLevel = null;
 		this.lastUpdatedAt = undefined;
 		this.dev = dev;
-		this.dev.helper.on("PropertiesChanged", (changedProps) => {
-			for ( let prop in changedProps ) {
-			  if (prop=="ServiceData") {
-				  this.handleSData(changedProps["ServiceData"].value);
-			  }
-			}
+		this.dev.on("ServiceData",(changedProps) => {
+			this.handleSData(changedProps["ServiceData"].value);
 		});
 	}
 	setDeviceProp(propName, value) {
-		//console.log("DEBUG 1 \t setDeviceProp called \t propname=" + propName + " value=" + value);
 		if ( (this.properties[propName]) && (this.properties[propName].value != value) ) {
 			console.log("XiaomiThermostat \t " + propName + " emitting change value = " + value + " oldValue=" + this.properties[propName].value);
 			this.emit("change", value, {"type": propName, "id": this.id, "oldvalue": this.properties[propName].value, "time": Date.now() });
@@ -322,10 +318,10 @@ class XiaomiThermostat extends EventEmitter {
 			const parsed = new Parser(unparsed,this.bindKey).parse();
 			if (parsed && parsed.frameControl.hasEvent) {
 				const events = this.parseServiceEvent(parsed);
-				const now = new Date(Date.now());
 				events.forEach( (event) => {
-					console.log("XiaomiThermostat\t handleSData \t id=" + this.id + " eventType=" + event.evType + " value=" + event.value + " " +
-									now.toLocaleDateString() + " " + now.toLocaleTimeString() + " fc=" + parsed.frameCounter)
+					console.log("XiaomiThermostat\t handleSData\t " + Date.now().toLocaleDateString() + " " + Date.now().toLocaleTimeString() +
+										"\t id=" + this.id + " eventType=" + event.evType + 
+										" value=" + event.value + " fc=" + parsed.frameCounter)
 					if (this.eventToPropertyMapping[event.evType]) {
 						this.setDeviceProp(this.eventToPropertyMapping[event.evType],event.value);
 					} else {
@@ -347,29 +343,46 @@ class XiaomiThermostat extends EventEmitter {
 	}
 	parseServiceEvent(result) {
 		const { eventType, event } = result;
-		if (eventType == EventTypes.temperature) {
+		switch (eventType) {
+		  case EventTypes.temperature: {
 			const { temperature } = event;
 			return [{"evType":"temperatureChange", "value": temperature}]
-		} else if (eventType == EventTypes.humidity) {
+			break;
+		  }
+		  case EventTypes.humidity: {
 			const { humidity } = event;
 			return [{"evType":"humidityChange", "value": humidity}]
-		} else if (eventType == EventTypes.battery) {
+			break;
+		  }
+		  case EventTypes.battery: {
 			const { battery } = event;
 			return [{"evType":"batteryChange", "value": battery}]
-		} else if (eventType == EventTypes.temperatureAndHumidity) {
+			break;
+		  }
+		  case EventTypes.temperatureAndHumidity: {
 			const { temperature, humidity } = event;
 			return [{"evType":"temperatureChange", "value": temperature},{"evType":"humidityChange", "value": humidity}]
-		} else if (eventType == EventTypes.illuminance) {
+			break;
+		  }
+		  case EventTypes.illuminance: {
 			const { illuminance } = event;
 			return [{"evType":"illuminanceChange", "value": illuminance}]
-		} else if (eventType == EventTypes.moisture) {
+			break;
+		  }
+		  case EventTypes.moisture: {
 			const { moisture } = event;
 			return [{"evType":"moistureChange", "value": moisture}]
-		} else if (eventType == EventTypes.fertility) {
+			break;
+		  }
+		  case EventTypes.fertility: {
 			const { fertility } = event;
 			return [{"evType":"fertilityChange", "value": fertility}]
-		} else {
-			return [{"evType":null, "value": (`Unknown event type ${eventType}`)}]
+			break;
+		  }
+		  default: {
+			return [{"evType":"error", "value": (`Unknown event type ${eventType}`)}]
+			return;
+		  }
 		}
 	}
 }

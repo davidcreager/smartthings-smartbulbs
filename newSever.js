@@ -27,7 +27,7 @@ const G_serverPort = properties.ServerPort
 let devicePortCounter = properties.DevicePortStart
 log.info("Starts"," gTest=" + gTest + " gCommand=" + gCommand);
 log.info("Config"," G_serverPort=" + G_serverPort + " devicePortCounter=" + devicePortCounter);
-let adverts = new devices.Advertiser({"log":log, portCounter: devicePortCounter, serverPort: G_serverPort}  );
+let adverts = new devices.Advertiser({"log":log, portCounter: devicePortCounter, serverPort: G_serverPort, mqt:{mqttPort:4422,mqttTopic:"work/"}}  );
 devices.Advertiser.configure({portCounter: 43000});
 
 let deviceHandler = new devices.BTDeviceHandler();
@@ -39,8 +39,13 @@ let updateTimers = {};
 let cnter = 0;
 let testDevs = {};
 let testStats = {};
+let now = new Date(Date.now());
+console.log(" date check " + now.toLocaleDateString() + " " + now.toLocaleTimeString());
 deviceHandler.getAdapter().then( (adapt)=>{
 	adapt.startDiscovery().then(()=>{
+		simplerTest(adapt);
+	}).catch((err)=> {
+		console.log("error starting discovery probably ok " + err)
 		simplerTest(adapt);
 	});
 });

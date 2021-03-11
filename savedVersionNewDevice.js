@@ -2,7 +2,6 @@
 'use strict';
 const props = require("./newProps")
 const advlib = require('advlib-ble');
-const { Parser, EventTypes, SERVICE_DATA_UUID } = require("./parser");
 const LIBRARIES = [ require('advlib-ble-services'),
                     require('advlib-ble-manufacturers') ];
 const PROCESSORS = [
@@ -11,15 +10,7 @@ const PROCESSORS = [
                    require('advlib-ble-manufacturers') ],
       options: { ignoreProtocolOverhead: true } }
 ];
-const util = require("util");
-const http = require('http');
-const SSDP = require('node-ssdp').Server;
-const ip=require("ip");
-const URL = require('url');
-const querystring = require('querystring');
-const EventEmitter = require("events");
-const {createBluetooth} = require('node-ble');
-const {bluetooth, destroy} = createBluetooth();
+'use strict';
 //Sort out server port and device port starting value
 let ssdpUSNPrefix = "urn:schemas-upnp-org:device:";
 let ssdpUDN = "TestBridge";
@@ -31,16 +22,35 @@ let aName = "abc";
 let devices = {};
 let classCounter=0;
 let deviceList = {};
-let gAdapter;
+let gAdapter
+
+function dumpObject(name,obj){
+	let out = ""
+	for (let key in obj) {
+		//out = (out=="") ? (key + ":" + obj[key]) : (out + "," + key + ":" + obj[key]);
+		out = (out=="") ? key : out + ", " + key;
+	}
+	console.log("object " + name + " = " + out);
+}
+const util = require("util");
+const http = require('http');
+const SSDP = require('node-ssdp').Server;
+const ip=require("ip");
+const URL = require('url');
+const querystring = require('querystring');
+const EventEmitter = require("events");
+
+const {createBluetooth} = require('node-ble')
+const {bluetooth, destroy} = createBluetooth()
+
+
 const peripheralAddresses = {"PB_Sphere_4": "2a:cf:4b:16:ac:e6", 
 								"yeelight_ms": "f8:24:41:c0:51:71",
 								"LYWSD03MMC": "a4:c1:38:f7:92:27",
-								"XMCTD_": "f8:24:41:e9:0d:18"};				
-		//this.addresses = ["2a:cf:4b:16:ac:e6"]; // playbulb sphere PB_Sphere_4
-		//this.addresses = ["f8:24:41:c0:51:71"]; // yeelight candela  yeelight_ms
-		//this.addresses = ["e5:53:e9:f9:11:37"]; // NO71W
-		//this.addresses = ["f8:24:41:e9:0d:18"]; // yeelight bedside XMCTD_								
+								"XMCTD_": "f8:24:41:e9:0d:18"};
+								
 const allAddresses = ["2a:cf:4b:16:ac:e6","f8:24:41:c0:51:71","f8:24:41:e9:0d:18" ];
+
 const simpLog = function(typ,obj,newb) {
 	//console.log(" cnt=" + classCounter + " Constructing a " + typ + " class=" + obj.constructor.name + 
 	//				" target=" + newb + " ssdpUSNPrefix=" + ssdpUSNPrefix + " ssdpUDN=" + ssdpUDN);
@@ -48,11 +58,6 @@ const simpLog = function(typ,obj,newb) {
 let log = {};
 let portCounter;
 let serverPort;
-let mqttServer= "mqtt://192.168.1.144";
-let mqttPort = 1883;
-let mqttTopic = "smartserver/";
-let mqttClient = null;
-
 class Advertiser extends EventEmitter {
 	constructor(staticStuff){
 		super();
@@ -61,15 +66,18 @@ class Advertiser extends EventEmitter {
 			log = staticStuff.log || console;
 			portCounter = staticStuff.portCounter || 6000;
 			serverPort = staticStuff.serverPort || 6500;
-			( {mqttPort, mqttTopic, mqttServer} = staticStuff["mqt"] );
 		}
+		
 		this.httpRequestHandler = this.httpRequestHandler.bind(this);
+		//console.log(" staticStuff = " + JSON.stringify(staticStuff));
 		if (!log.info) log.info = console.log;
 		if (!log.warn) log.warn = console.log;
 		if (!log.debug) log.debug = console.log;
 		if (!log.error) log.error = console.log;
+		//console.log(" log = " + JSON.stringify(log));
 		simpLog("Advertiser",this, new.target.name);
 	}
+								
 	static configure(config) {
 		({ssdpUSNPrefix = ssdpUSNPrefix, ssdpUDN = ssdpUDN} = config);
 		deviceList = {"WifiDeviceHandler":  WifiDeviceHandler, "BTDeviceHandler":  BTDeviceHandler, "ConnectableBTDeviceHandler":  ConnectableBTDeviceHandler};
@@ -93,32 +101,13 @@ class Advertiser extends EventEmitter {
 		let url = URL.parse(req.url, true);
 		let query = querystring.parse(url.query);
 		console.log("smartserver:httpRequestHandler: url=" + JSON.stringify(req.url));
+		
 		this.processRequest(url,query);
 		resp.writeHead(200, {"Content-Type": "application/json"});
 		resp.write("I'm here " + " url=" + JSON.stringify(url) + " query=" + JSON.stringify(query));
 		resp.end();
 	}
-	startMQTT(){
-		const client = mqtt.connect(mqttServer);
-		client.on("connect", () => {
-		  this.log.info("MQTT Client connected.");
-		});
-		client.on("reconnect", () => {
-		  this.log.debug("MQTT Client reconnecting.");
-		});
-		client.on("close", () => {
-		  this.log.debug("MQTT Client disconnected");
-		});
-		client.on("error", error => {
-		  this.log.error(error);
-		  client.end();
-		});
-		log.info("MQTTClient" , " running on " + mqttServer + ":" + mqttPort + " with topic " + mqttTopic);
-		return client;
-	}
-	publishMQTTMessage(topic,msg){
-		this.mqttClient.publish(topic, String(msg));
-	}
+
 }
 class BridgeDeviceHandler extends Advertiser{
 	constructor(port){
@@ -126,6 +115,7 @@ class BridgeDeviceHandler extends Advertiser{
 		this.ssdpUSN = ssdpUSNPrefix + ssdpUDN + ":1";
 		simpLog("BridgeDeviceHandler",this, new.target.name);		
 	}
+
 	createSSDP(){
 		this.SSDPServer = new SSDP({allowWildcards:true,sourcePort:1900,udn: ssdpUDN,
 										location:"http://"+ ip.address() + ":" + serverPort + '/bridge'
@@ -145,7 +135,7 @@ class DeviceHandler extends Advertiser {
 		this.port = portCounter;
 		this.type = "genericDevice" || type;
 		this.ssdpUSN = ssdpUSNPrefix + type;
-		this.smartThingsDeviceHandler = smartthingsDeviceHandler || "";
+		this.smartThingsDeviceHandler = smartthingsDeviceHandler || ""
 		portCounter++;
 		simpLog("DeviceHandler",this, new.target.name);
 	}
@@ -179,47 +169,35 @@ class BTDeviceHandler extends DeviceHandler {
 		simpLog("BTDeviceHandler",this, new.target.name);
 		this.discoveredPeripherals = {};
 		this.addresses = [];
+		//this.addresses = ["2a:cf:4b:16:ac:e6"]; // playbulb sphere PB_Sphere_4
+		//this.addresses = ["f8:24:41:c0:51:71"]; // yeelight candela  yeelight_ms
+		//this.addresses = ["e5:53:e9:f9:11:37"]; // NO71W
+		//this.addresses = ["f8:24:41:e9:0d:18"]; // yeelight bedside XMCTD_
+
 	}
-	async getAdapter(listener = null) {
+	async getAdapter() {
 		if ( (gAdapter=={}) || (!gAdapter) ) {
 			log.info("BTDeviceHandler.getAdapter\t Creating Adapter");
 			try {
 				 const adapt = await bluetooth.defaultAdapter();
 				 gAdapter = adapt;
-				 gAdapter.on("PropertiesChanged", (event) => {
-						console.log("event emitteed")
-						if (listener) listener(event)
-					 });
 				 return adapt;
 				} catch (err) {
 					log.error("getAdapater error=" + err);
 					throw err;
 				}
 		} else {
-			//log.info("BTDeviceHandler.getAdapter\t Adapter Already Exists ");
-			return gAdapter;
+			log.info("BTDeviceHandler.getAdapter\t Adapter Already Exists ");
 		}
 	}
 	dumpDevices(){
 		console.log("dumpdevices\t" + this.devices.length + " devices found");
 		this.devices.forEach( (dev) => {
-			console.log("dumpdevices\t" + JSON.stringify(dev));
+			console.log("dumpdevices\t" + JSON.stringify(dev)); /*
+			console.log("dumpdevices\t " + dev.alias + " " + dev.name + " adtype=" + dev.adtype)
+			console.log("\t\t sdata=" + JSON.stringify(parseAdvData(dev.sdata)));
+			console.log("\t\t mdata=" + JSON.stringify(parseAdvData(dev.mdata))); */
 			});
-	}
-	parseAdvData(data) {
-		let adv = null;
-		if (typeof(data) != "string") {
-			for (const uid in data) {
-				//console.log("uid=" + uid + " hex=" + uid.toString("hex"));
-				let arr = Buffer.from(data[uid].value);
-				if (adv) {console.log("HELP - adv is not null uid=" + uid + " adv=" + JSON.stringify(adv))};
-				adv = advlib.process(arr, PROCESSORS)
-				// care multiple uids issue
-			}
-		} else {
-			adv = data;
-		}
-		return adv
 	}
 	async processDevice(device) {
 		let dev = await gAdapter.getDevice(device);
@@ -232,21 +210,6 @@ class BTDeviceHandler extends DeviceHandler {
 				dev.getManufacturerData().catch( () => {return "no Manufacturer Data"})
 				])
 	}
-	async rawDiscoverDevices() {
-		try {
-			if (!gAdapter) {
-				log.error("discoverDevices\t adapter not there");
-				return null;
-			}
-			if (! await gAdapter.isDiscovering()) await gAdapter.startDiscovery();
-			this.devices = await gAdapter.devices();
-			await gAdapter.stopDiscovery();
-			return this.devices;
-		} catch (err) {
-			log.error("discoverDevices error=" + err);
-			return null;
-		}
-	}
 	async discoverDevices(){
 		try {
 			if (!gAdapter) {
@@ -256,120 +219,20 @@ class BTDeviceHandler extends DeviceHandler {
 			if (! await gAdapter.isDiscovering()) await gAdapter.startDiscovery();
 			let devs = await gAdapter.devices();
 			let devPromises = devs.map(  (device,ind) => {
-				//console.log("\t mapping ind=" + ind + " device=" + device);
-				const retval = this.processDevice(device); // With no await, this function returns a promise as it async!!!!
+				console.log("\t mapping ind=" + ind + " device=" + device);
+				const retval = this.processDevice(device); 
 				return retval
 				});
-			let devObjects = await Promise.all(devPromises).then(); 
-			this.devices = devObjects.map( (dev) => {
-				let [id,alias,adType,name,sdata,mdata] = dev;
-				//console.log("\t\t sdata=" + JSON.stringify(parseAdvData(sdata)) +" \t mdata=" + JSON.stringify(parseAdvData(mdata)));
-				return ({id:id, alias:alias, adType:adType, name:name, sdata:this.parseAdvData(sdata), mdata:this.parseAdvData(mdata)})
-			});
-			//this.dumpDevices();
+			console.log("DEBUG devPromises[0]=" + devPromises[0] + "\tJS=" + JSON.stringify(devPromises[0]))
+			let resolvedDevPromises = await Promise.all(devPromises).then(); // Resolves the getDevice
+			console.log("DEBUG resolvedDevPromises[0]=" + resolvedDevPromises[0] + "\tJS=" + JSON.stringify(resolvedDevPromises[0]))
+			this.devices = resolvedDevPromises;
+			this.dumpDevices();
 			await gAdapter.stopDiscovery();
 			return this.devices;
 		} catch (err) {
 			log.error("discoverDevices error=" + err);
 			return null;
-		}
-	}
-}
-//let bindKeys = ["937ac1412e511bf43c0be0ccad342fbc","6409e0c4e83e4486e45223d0cfa0985b"];
-//let addresses = ["A4:C1:38:03:D4:0D","A4:C1:38:F7:92:27"];
-
-class XiaomiThermostat extends EventEmitter {
-	constructor(handler, id, bindKey,dev){
-		super();
-		this.id = id;
-		this.eventHandlers = {"temperatureChange": this.setTemperature, "batteryChange": this.setBatteryLevel, "humidityChange":this.setHumidity};
-		this.eventToPropertyMapping = {"temperatureChange": "temperature", "batteryChange": "batteryLevel", "humidityChange": "humidity"}
-		this.properties = {"temperature": { "value": undefined, "lastUpdated": undefined },
-							"humidity": { "value": undefined, "lastUpdated": undefined },
-							"batteryLevel": { "value": undefined, "lastUpdated": undefined },
-							};
-		this.bindKey = bindKey;
-		this.handler = handler;
-		this.temperature = null;
-		this.humidity = null;
-		this.batteryLevel = null;
-		this.lastUpdatedAt = undefined;
-		this.dev = dev;
-		this.dev.helper.on("PropertiesChanged", (changedProps) => {
-			for ( let prop in changedProps ) {
-			  if (prop=="ServiceData") {
-				  this.handleSData(changedProps["ServiceData"].value);
-			  }
-			}
-		});
-	}
-	setDeviceProp(propName, value) {
-		//console.log("DEBUG 1 \t setDeviceProp called \t propname=" + propName + " value=" + value);
-		if ( (this.properties[propName]) && (this.properties[propName].value != value) ) {
-			console.log("XiaomiThermostat \t " + propName + " emitting change value = " + value + " oldValue=" + this.properties[propName].value);
-			this.emit("change", value, {"type": propName, "id": this.id, "oldvalue": this.properties[propName].value, "time": Date.now() });
-			this.properties[propName].value = value;
-			this.properties[propName].lastUpdated = Date.now();
-		} else if (!properties[propName]) {
-			console.log("XiaomiThermostat\t " + propName + "\t ERROR invalid property");
-		} else {
-			console.log("XiaomiThermostat\t " + propName + " oldValue=" + this.properties[propName].value + " newValue=" + value + " test=" + (this.properties[propName].value != value));
-		}
-	}
-	handleSData(sdata){
-		for (let uuid in sdata) {
-			const unparsed = new Buffer.from(sdata[uuid].value);
-			const parsed = new Parser(unparsed,this.bindKey).parse();
-			if (parsed && parsed.frameControl.hasEvent) {
-				const events = this.parseServiceEvent(parsed);
-				const now = new Date(Date.now());
-				events.forEach( (event) => {
-					console.log("XiaomiThermostat\t handleSData \t id=" + this.id + " eventType=" + event.evType + " value=" + event.value + " " +
-									now.toLocaleDateString() + " " + now.toLocaleTimeString() + " fc=" + parsed.frameCounter)
-					if (this.eventToPropertyMapping[event.evType]) {
-						this.setDeviceProp(this.eventToPropertyMapping[event.evType],event.value);
-					} else {
-						console.log("handleSData\t id=" + this.id + " eventType=" + event.evType + " Handler not found");
-					}
-				});
-			}
-		}
-	}
-	async prepare(){
-		try {
-			console.log("dev has " + this.dev.listenerCount("ServiceData") + " listeners");
-			let sdata = await this.dev.getServiceData();
-			this.handleSData(sdata);
-		} catch (err) {
-			console.log("XiaomiThermostat\t Prepare \t error getting sdata " + err);
-			return
-		}
-	}
-	parseServiceEvent(result) {
-		const { eventType, event } = result;
-		if (eventType == EventTypes.temperature) {
-			const { temperature } = event;
-			return [{"evType":"temperatureChange", "value": temperature}]
-		} else if (eventType == EventTypes.humidity) {
-			const { humidity } = event;
-			return [{"evType":"humidityChange", "value": humidity}]
-		} else if (eventType == EventTypes.battery) {
-			const { battery } = event;
-			return [{"evType":"batteryChange", "value": battery}]
-		} else if (eventType == EventTypes.temperatureAndHumidity) {
-			const { temperature, humidity } = event;
-			return [{"evType":"temperatureChange", "value": temperature},{"evType":"humidityChange", "value": humidity}]
-		} else if (eventType == EventTypes.illuminance) {
-			const { illuminance } = event;
-			return [{"evType":"illuminanceChange", "value": illuminance}]
-		} else if (eventType == EventTypes.moisture) {
-			const { moisture } = event;
-			return [{"evType":"moistureChange", "value": moisture}]
-		} else if (eventType == EventTypes.fertility) {
-			const { fertility } = event;
-			return [{"evType":"fertilityChange", "value": fertility}]
-		} else {
-			return [{"evType":null, "value": (`Unknown event type ${eventType}`)}]
 		}
 	}
 }
@@ -498,8 +361,7 @@ function dumpPeripheral(peripheral) {
 
 }
 
-module.exports = {Advertiser,DeviceHandler,WifiDeviceHandler,
-					XiaomiThermostat,BTDeviceHandler,ConnectableBTDeviceHandler,DeviceFactory,BridgeDeviceHandler}
+module.exports = {Advertiser,DeviceHandler,WifiDeviceHandler,BTDeviceHandler,ConnectableBTDeviceHandler,DeviceFactory,BridgeDeviceHandler}
 
 class BTDevice {
 	constructor(type,device){
@@ -532,11 +394,16 @@ class BTDevice {
 
 	}
 }
-function dumpObject(name,obj){
-	let out = ""
-	for (let key in obj) {
-		//out = (out=="") ? (key + ":" + obj[key]) : (out + "," + key + ":" + obj[key]);
-		out = (out=="") ? key : out + ", " + key;
+function parseAdvData(data) {
+	let adv = null;
+	if (typeof(data) != "string") {
+		for (const uid in data) {
+			let arr = Buffer.from(data[uid].value);
+			if (adv) {console.log("HELP - adv is not null uid=" + uid + " adv=" + JSON.stringify(adv))};
+			adv = advlib.process(arr, PROCESSORS)
+		}
+	} else {
+		adv = data;
 	}
-	console.log("object " + name + " = " + out);
-}
+	return adv
+}	

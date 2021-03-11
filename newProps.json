@@ -1,0 +1,38 @@
+{
+	"ServerPort" : 5183 ,
+	"DevicePortStart" : 5301,
+	"Playbulb": {
+					"Prefix": "XMCTD_",
+					"COMMAND_CHARACT_UUID":"",
+					"NOTIFY_CHARACT_UUID":"",
+					"SERVICE_UUID":""
+				},
+	"YeeBTLamp": { 	
+					"Prefix": "XMCTD_",
+					"COMMAND_CHARACT_UUID":"aa7d3f342d4f41e0807f52fbf8cf7443",
+					"NOTIFY_CHARACT_UUID":"8f65073d9f574aaaafea397d19d5bbeb",
+					"SERVICE_UUID": "8e2f0cbd1a664b53ace6b494e25f87bd",
+					"Commands": { "on" :	"434001"
+								, "off" : 	"434002"
+								, "status": "4344"
+								, "temperature" : "4343"
+								, "rgb" : "4341"
+								, "pair" : "436702"
+								, "name" : "4352"
+								, "disconnect" : "4368"
+								, "stats" : "438c"
+								}
+				},
+	"Candela" : {
+					"Prefix": "XMCTD_",
+					"COMMAND_CHARACT_UUID":"aa7d3f34-2d4f-41e0-807f-52fbf8cf7443",
+					"NOTIFY_CHARACT_UUID":"8f65073d-9f57-4aaa-afea-397d19d5bbeb",
+					"SERVICE_UUID": ""
+				},
+	"Xiaomi-bluetooth": {
+					"Prefix": "XMCTD_",
+					"COMMAND_CHARACT_UUID":"",
+					"NOTIFY_CHARACT_UUID":"",
+					"SERVICE_UUID": "0000fe87-0000-1000-8000-00805f9b34fb"
+				}
+}
